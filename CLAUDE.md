@@ -1,0 +1,122 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commit Convention
+When committing changes via Claude Code, omit the Co-Authored-By line as specified in project preferences.
+
+## Development Commands
+
+### Installation
+```bash
+pip install -r requirements.txt
+```
+
+### Running the Script
+Basic usage:
+```bash
+python3 github_fetcher.py <owner/repo> <since-timestamp>
+```
+
+Examples:
+- Fetch all data newer than March 1, 2026:
+  ```bash
+  python3 github_fetcher.py torvalds/linux 2026-03-01
+  ```
+
+- Fetch only issues newer than March 15, 2026 at 10:30 AM:
+  ```bash
+  python3 github_fetcher.py torvalds/linux "2026-03-15 10:30:00" --issues-only
+  ```
+
+- Fetch comments and save to file:
+  ```bash
+  python3 github_fetcher.py torvalds/linux 2026-03-10 --comments-only --output comments.json
+  ```
+
+- With GitHub token (required for private repos, recommended for public to avoid rate limits):
+  ```bash
+  export GITHUB_TOKEN=your_token_here
+  python3 github_fetcher.py torvalds/linux 2026-03-01
+  ```
+
+### Working with Private Repositories
+To access private repositories, you must provide a GitHub personal access token with appropriate permissions (at minimum, `repo` scope for private repos or `public_repo` for public repos):
+
+```bash
+export GITHUB_TOKEN=your_token_here
+python3 github_fetcher.py private-owner/private-repo 2026-03-01
+```
+
+Without a token, the script will still work for public repositories but will be subject to GitHub's stricter rate limits for unauthenticated requests (60 requests/hour vs 5,000 requests/hour for authenticated requests).
+
+### Testing
+Run the script with different parameters to verify functionality:
+```bash
+# Test basic functionality
+python3 github_fetcher.py <small-repo> 2026-03-01 --issues-only
+
+# Test with output file
+python3 github_fetcher.py <repo> 2026-03-01 --output test_output.json
+
+# Test error handling
+python3 github_fetcher.py invalid/repo 2026-03-01  # Should show error
+python3 github_fetcher.py <repo> invalid-date       # Should show date parse error
+```
+
+## Code Architecture
+
+### Main Components
+
+1. **GitHubFetcher Class** (lines 16-170): Core functionality for interacting with GitHub API
+   - Handles authentication via token or GITHUB_TOKEN environment variable
+   - Manages API requests with automatic pagination
+   - Provides methods to fetch issues, issue comments, and pull request comments
+   - Includes rate limit awareness (warning when no token provided)
+
+2. **Date Parsing** (lines 172-206): `parse_datetime_string()` function
+   - Supports multiple date formats: YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, ISO format
+   - Returns timezone-aware datetime objects (defaults to UTC)
+
+3. **Main Execution** (lines 208-289): `main()` function
+   - Parses command-line arguments using argparse
+   - Routes to appropriate fetch methods based on flags
+   - Handles JSON output formatting and file writing
+
+### Key Features
+- Automatic pagination handling for GitHub API responses
+- Separation of concerns: issues vs issue comments vs PR comments
+- Filtering to exclude pull requests from issues endpoint (GitHub includes them)
+- Flexible output: stdout or file
+- Proper error handling for API requests and date parsing
+- Type hints throughout for better code clarity
+
+### Data Flow
+1. Command line arguments parsed in `main()`
+2. Date string converted to timezone-aware datetime via `parse_datetime_string()`
+3. GitHubFetcher instance created with optional token
+4. Appropriate fetch methods called based on flags:
+   - `--issues-only`: Calls `get_issues_since()`
+   - `--comments-only`: Calls `get_issue_comments_since()` + `get_pull_request_comments_since()`
+   - Default: Calls `fetch_all_data()` which combines all three
+5. Results formatted as JSON and output to specified destination
+
+### Dependencies
+- `requests`: For HTTP API calls to GitHub
+- `python-dateutil`: Used implicitly through datetime.fromisoformat() (built-in in Python 3.7+)
+- Standard library: `os`, `sys`, `json`, `argparse`, `datetime`, `typing`
+
+## Best Practices for Development
+
+### When Modifying the Code
+- Maintain separation between API logic (`GitHubFetcher` class) and CLI interface (`main()` function)
+- Keep date parsing logic centralized in `parse_datetime_string()`
+- Preserve the pagination handling pattern in `_make_request()`
+- Continue using type hints for function parameters and return values
+- Maintain consistent error reporting to stderr for diagnostic information
+
+### Adding New Features
+- For new GitHub endpoints, follow the pattern in `_make_request()` and existing getter methods
+- Consider adding new command-line flags in the argparse section if exposing new functionality
+- Maintain backward compatibility with existing flag combinations
+- Update docstrings and README.md when changing behavior
