@@ -48,6 +48,28 @@ export GITHUB_TOKEN=your_token_here
 python3 github_fetcher.py private-owner/private-repo 2026-03-01
 ```
 
+#### Using a .env File
+While the script doesn't automatically load .env files, you can use one of these approaches:
+
+1. **Manual export**:
+   ```bash
+   export GITHUB_TOKEN=your_token_here
+   python3 github_fetcher.py <repo> <since>
+   ```
+
+2. **Source a .env file**:
+   Create a `.env` file with:
+   ```
+   GITHUB_TOKEN=your_token_here
+   ```
+   Then load it:
+   ```bash
+   source .env
+   python3 github_fetcher.py <repo> <since>
+   ```
+
+3. **Using direnv or similar tools** that automatically load environment variables
+
 Without a token, the script will still work for public repositories but will be subject to GitHub's stricter rate limits for unauthenticated requests (60 requests/hour vs 5,000 requests/hour for authenticated requests).
 
 ### Testing
