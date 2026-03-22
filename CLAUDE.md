@@ -42,10 +42,10 @@ Examples:
   python3 github_fetcher.py torvalds/linux 2026-03-01
   ```
 
-#### Automation Script (process_done_files.py)
+#### Automation Script (process_event_file.py)
 Process .done files to automatically fetch GitHub data:
 ```bash
-python3 process_done_files.py
+python3 process_event_file.py
 ```
 
 This script:
@@ -53,8 +53,9 @@ This script:
 2. Processes files matching `username_repo-yyyymmdd-hhMMss.done` format
 3. Runs github_fetcher.py for each matched file
 4. Writes output to `username_repo-YYYYMMDD-HHMMSS.json`
-5. Moves processed .done files to an archive directory
-6. Gets GitHub token from .env file
+5. **Only moves .done files to archive if meaningful data was fetched** (issues, comments, or PR comments)
+6. **Removes output file if no meaningful data was found** (to avoid clutter)
+7. Gets GitHub token from .env file
 
 ### Working with Private Repositories
 To access private repositories, you must provide a GitHub personal access token with appropriate permissions (at minimum, `repo` scope for private repos or `public_repo` for public repos):

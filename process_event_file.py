@@ -6,7 +6,7 @@ This script implements the requirements from issue #1:
 1. List files in a directory
 2. For filename in format username_repo-yyyymmdd-hhMMss.done, run github_fetcher.py for username/repo
    and since yyyymmdd-hhMMss, output written to username_repo-$newdatetime
-3. Move the old .done file to an archive directory
+3. Move the old .done file to an archive directory (only if meaningful data was fetched)
 4. Get github token from .env from the same directory of this script
 """
 
@@ -64,6 +64,23 @@ def parse_done_filename(filename):
         return username, repo, since_dt
     except ValueError:
         return None
+
+
+def has_meaningful_data(data):
+    """
+    Check if the fetched data contains meaningful information (issues, comments, etc.).
+
+    Args:
+        data: The parsed JSON data from github_fetcher.py
+
+    Returns:
+        bool: True if there are issues, issue_comments, or pull_request_comments
+    """
+    issues_count = len(data.get('issues', []))
+    issue_comments_count = len(data.get('issue_comments', []))
+    pr_comments_count = len(data.get('pull_request_comments', []))
+
+    return (issues_count > 0 or issue_comments_count > 0 or pr_comments_count > 0)
 
 
 def main():
@@ -131,20 +148,43 @@ def main():
                 check=True
             )
 
-            print(f"  Successfully fetched data for {repo_full}")
-            print(f"  Output saved to: {output_filename}")
+            # Read and parse the output to check if it contains meaningful data
+            with open(output_path, 'r') as f:
+                output_data = json.load(f)
 
-            # Move the .done file to archive
-            archive_path = archive_dir / done_file.name
-            shutil.move(str(done_file), str(archive_path))
-            print(f"  Moved {done_file.name} to archive/")
+            if has_meaningful_data(output_data):
+                print(f"  Successfully fetched meaningful data for {repo_full}")
+                print(f"  Output saved to: {output_filename}")
+
+                # Move the .done file to archive only if we got meaningful data
+                archive_path = archive_dir / done_file.name
+                shutil.move(str(done_file), str(archive_path))
+                print(f"  Moved {done_file.name} to archive/")
+            else:
+                print(f"  No meaningful data found for {repo_full} (no issues/comments)")
+                print(f"  Removing empty output file: {output_filename}")
+                # Remove the output file since it contains no meaningful data
+                output_path.unlink()
+                # Do NOT archive the .done file since no meaningful data was fetched
+                print(f"  Kept {done_file.name} in place (no archive)")
 
         except subprocess.CalledProcessError as e:
             print(f"  Error processing {done_file.name}:", file=sys.stderr)
             print(f"  Exit code: {e.returncode}", file=sys.stderr)
             print(f"  stderr: {e.stderr}", file=sys.stderr)
+            # Clean up output file if it exists
+            if output_path.exists():
+                output_path.unlink()
+        except json.JSONDecodeError as e:
+            print(f"  Error parsing JSON output for {done_file.name}: {e}", file=sys.stderr)
+            # Clean up output file if it exists
+            if output_path.exists():
+                output_path.unlink()
         except Exception as e:
             print(f"  Unexpected error processing {done_file.name}: {e}", file=sys.stderr)
+            # Clean up output file if it exists
+            if output_path.exists():
+                output_path.unlink()
 
 
 if __name__ == '__main__':
