@@ -8,6 +8,10 @@ This script implements the requirements from issue #1:
    and since yyyymmdd-hhMMss, output written to username_repo-$newdatetime
 3. Move the old .done file to an archive directory (only if meaningful data was fetched)
 4. Get github token from .env from the same directory of this script
+
+Enhanced per issue #3:
+- Accepts a directory argument to process .done files from a specific directory
+- Reads .env from the same directory as the script (not current working directory)
 """
 
 import os
@@ -20,7 +24,7 @@ import subprocess
 from pathlib import Path
 
 
-def load_env_file(env_path='.env'):
+def load_env_file(env_path):
     """Load environment variables from .env file."""
     env_vars = {}
     if os.path.exists(env_path):
@@ -84,27 +88,52 @@ def has_meaningful_data(data):
 
 
 def main():
-    # Load environment variables from .env file
-    env_vars = load_env_file()
+    # Handle command line arguments
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='Process .done files and fetch GitHub data for specified repositories.'
+    )
+    parser.add_argument(
+        'directory',
+        nargs='?',
+        default='.',
+        help='Directory to search for .done files (default: current directory)'
+    )
+
+    args = parser.parse_args()
+
+    # Get the directory where this script is located (for .env file)
+    script_dir = Path(__file__).parent.absolute()
+    env_path = script_dir / '.env'
+
+    # Load environment variables from .env file in script directory
+    env_vars = load_env_file(env_path)
     github_token = env_vars.get('GITHUB_TOKEN')
 
     if not github_token:
         print("Error: GITHUB_TOKEN not found in .env file", file=sys.stderr)
+        print(f"Looked for .env file at: {env_path}", file=sys.stderr)
         sys.exit(1)
 
     # Set up directories
-    current_dir = Path('.')
-    archive_dir = current_dir / 'archive'
+    target_dir = Path(args.directory).resolve()
+    if not target_dir.is_dir():
+        print(f"Error: Directory '{args.directory}' does not exist", file=sys.stderr)
+        sys.exit(1)
+
+    archive_dir = target_dir / 'archive'
     archive_dir.mkdir(exist_ok=True)
 
-    # Find all .done files
-    done_files = list(current_dir.glob('*.done'))
+    # Find all .done files in the specified directory
+    done_files = list(target_dir.glob('*.done'))
 
     if not done_files:
-        print("No .done files found to process.")
+        print(f"No .done files found to process in directory: {target_dir}")
         return
 
-    print(f"Found {len(done_files)} .done file(s) to process.")
+    print(f"Found {len(done_files)} .done file(s) to process in directory: {target_dir}")
+    print(f"Loading .env file from: {env_path}")
 
     for done_file in done_files:
         print(f"\nProcessing {done_file.name}...")
@@ -125,7 +154,7 @@ def main():
         # Using current timestamp for the output file
         output_timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         output_filename = f"{username}_{repo}-{output_timestamp}.json"
-        output_path = current_dir / output_filename
+        output_path = target_dir / output_filename
 
         # Build command to run github_fetcher.py
         cmd = [
