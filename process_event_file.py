@@ -18,7 +18,7 @@ import os
 import sys
 import json
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 import subprocess
 from pathlib import Path
@@ -147,8 +147,10 @@ def main():
         username, repo, since_dt = parsed
         repo_full = f"{username}/{repo}"
 
-        # Format since timestamp for the script
-        since_str = since_dt.strftime('%Y-%m-%d %H:%M:%S')
+        # Convert local time from filename to UTC for GitHub API
+        # Assume the timestamp in .done file represents local time
+        since_dt_utc = since_dt.astimezone(timezone.utc)
+        since_str = since_dt_utc.strftime('%Y-%m-%d %H:%M:%S')
 
         # Generate output filename: username_repo-$newdatetime
         # Using current timestamp for the output file (local time for human readability)

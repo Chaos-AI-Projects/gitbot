@@ -45,6 +45,7 @@ Examples:
 #### Key Improvements in GitHub Fetcher:
 - **Filters to only open issues** (skips closed issues as requested in issue #5)
 - **Uses UTC timestamps consistently** for all GitHub API interactions
+- **process_event_file.py converts local time from .done files to UTC** for GitHub API calls
 - **Output filenames in process_event_file.py use local time** for better human readability (as requested in PR feedback)
 
 #### Automation Script (process_event_file.py)
