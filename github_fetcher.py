@@ -87,12 +87,12 @@ class GitHubFetcher:
             since: Datetime object (timezone aware)
 
         Returns:
-            List of issue dictionaries
+            List of issue dictionaries (only open issues)
         """
         url = f"{self.base_url}/repos/{repo}/issues"
         params = {
             'since': since.isoformat(),
-            'state': 'all'  # Get both open and closed issues
+            'state': 'open'  # Get only open issues (skip closed ones)
         }
 
         issues = self._make_request(url, params)
