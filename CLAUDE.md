@@ -42,6 +42,11 @@ Examples:
   python3 github_fetcher.py torvalds/linux 2026-03-01
   ```
 
+#### Key Improvements in GitHub Fetcher:
+- **Filters to only open issues** (skips closed issues as requested in issue #5)
+- **Uses UTC timestamps consistently** for all GitHub API interactions
+- **Output filenames in process_event_file.py now use UTC time** to match GitHub API timezone (issue #5)
+
 #### Automation Script (process_event_file.py)
 Process .done files to automatically fetch GitHub data:
 ```bash
@@ -52,7 +57,7 @@ This script:
 1. Lists files in the specified directory (or current directory if none specified)
 2. Processes files matching `username_repo-yyyymmdd-hhMMss.done` format
 3. Runs github_fetcher.py for each matched file
-4. Writes output to `username_repo-YYYYMMDD-HHMMSS.json`
+4. Writes output to `username_repo-YYYYMMDD-HHMMSS.json` (using UTC time)
 5. **Only moves .done files to archive if meaningful data was fetched** (issues, comments, or PR comments)
 6. **Removes output file if no meaningful data was found** (to avoid clutter)
 7. **Accepts an optional directory argument** to process .done files from a specific directory

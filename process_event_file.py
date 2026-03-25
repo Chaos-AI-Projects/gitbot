@@ -18,7 +18,7 @@ import os
 import sys
 import json
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 import subprocess
 from pathlib import Path
@@ -151,8 +151,8 @@ def main():
         since_str = since_dt.strftime('%Y-%m-%d %H:%M:%S')
 
         # Generate output filename: username_repo-$newdatetime
-        # Using current timestamp for the output file
-        output_timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        # Using current timestamp in UTC for the output file to match GitHub API timezone
+        output_timestamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
         output_filename = f"{username}_{repo}-{output_timestamp}.json"
         output_path = target_dir / output_filename
 
