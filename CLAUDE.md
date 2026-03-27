@@ -65,6 +65,29 @@ This script:
 8. **Reads .env file from the script's directory** (not current working directory)
 9. Gets GitHub token from .env file
 
+#### Claude Agent Script (claude_agent.py)
+Invoke Claude CLI to autonomously act on GitHub activity:
+```bash
+python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
+```
+
+This script:
+1. Takes a JSON file produced by `github_fetcher.py`
+2. Builds a prompt instructing Claude to process the GitHub activity
+3. Invokes `claude -p` with restricted tool permissions (git, gh, python3, file editing)
+4. Claude reads the JSON, identifies actionable items, and acts according to priority rules:
+   - **Task issues** (label "task" + "@claude implement") → implement and create PR
+   - **PR review comments** → address feedback and push fixes
+   - **Other issues** → create task breakdown comment
+   - **Ambiguous items** → ask for clarification
+5. All agent-created GitHub content is prefixed with `%claude`
+6. Renames the JSON file to `.done` after completion (prevents re-processing)
+
+Options:
+- `--dry-run`: Print the prompt without invoking Claude
+- `--model MODEL`: Override the Claude model
+- `--repo-dir DIR`: Set the working directory for Claude (default: script's directory)
+
 ### Working with Private Repositories
 To access private repositories, you must provide a GitHub personal access token with appropriate permissions (at minimum, `repo` scope for private repos or `public_repo` for public repos):
 
