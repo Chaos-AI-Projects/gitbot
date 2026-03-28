@@ -74,7 +74,7 @@ python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
 This script:
 1. Takes a JSON file produced by `github_fetcher.py`
 2. Builds a prompt instructing Claude to process the GitHub activity
-3. Invokes `claude -p` with restricted tool permissions (git, gh, python3, file editing)
+3. Invokes `claude -p` with all tools available
 4. Claude reads the JSON, identifies actionable items, and acts according to priority rules:
    - **Task issues** (label "task" + "@claude implement") → implement and create PR
    - **PR review comments** → address feedback and push fixes
@@ -86,7 +86,7 @@ This script:
 Options:
 - `--dry-run`: Print the prompt without invoking Claude
 - `--model MODEL`: Override the Claude model
-- `--repo-dir DIR`: Set the working directory for Claude (default: script's directory)
+- `--repo-dir DIR`: Set the working directory for Claude (default: current working directory; must be git repo root on main/master branch)
 
 ### Working with Private Repositories
 To access private repositories, you must provide a GitHub personal access token with appropriate permissions (at minimum, `repo` scope for private repos or `public_repo` for public repos):

@@ -93,12 +93,7 @@ def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
     Returns:
         The exit code from the Claude CLI process
     """
-    cmd = [
-        'claude', '-p',
-        '--allowedTools',
-        'Bash(git:*)', 'Bash(gh:*)', 'Bash(python3:*)',
-        'Edit', 'Read', 'Write', 'Glob', 'Grep',
-    ]
+    cmd = ['claude', '-p']
 
     if model:
         cmd.extend(['--model', model])
@@ -150,7 +145,7 @@ def main():
     parser.add_argument(
         '--repo-dir',
         default=None,
-        help='Repository directory for Claude to work in (default: directory of this script)'
+        help='Repository directory for Claude to work in (default: current working directory)'
     )
 
     args = parser.parse_args()
@@ -165,14 +160,33 @@ def main():
         print(f"Error: Expected a .json file, got: {json_path.name}", file=sys.stderr)
         sys.exit(1)
 
-    # Determine repo directory
+    # Determine repo directory (default: current working directory)
     if args.repo_dir:
         repo_dir = Path(args.repo_dir).resolve()
     else:
-        repo_dir = Path(__file__).parent.resolve()
+        repo_dir = Path.cwd().resolve()
 
     if not repo_dir.is_dir():
         print(f"Error: Repository directory not found: {repo_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Verify repo_dir is the top of a git repository
+    if not (repo_dir / '.git').exists():
+        print(f"Error: {repo_dir} is not the top of a git repository (no .git directory)", file=sys.stderr)
+        sys.exit(1)
+
+    # Verify we are on main or master branch
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            cwd=str(repo_dir), capture_output=True, text=True, check=True,
+        )
+        current_branch = result.stdout.strip()
+        if current_branch not in ('main', 'master'):
+            print(f"Error: Must be on main or master branch, currently on '{current_branch}'", file=sys.stderr)
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error: Failed to determine git branch: {e.stderr.strip()}", file=sys.stderr)
         sys.exit(1)
 
     # Build the prompt
