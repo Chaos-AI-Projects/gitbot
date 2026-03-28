@@ -93,7 +93,7 @@ def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
     Returns:
         The exit code from the Claude CLI process
     """
-    cmd = ['claude', '-p']
+    cmd = ['claude', '-p', '--dangerously-skip-permissions']
 
     if model:
         cmd.extend(['--model', model])
