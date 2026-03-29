@@ -161,7 +161,7 @@ def main():
         # Build command to run github_fetcher.py
         cmd = [
             sys.executable,  # Use the same Python interpreter
-            'github_fetcher.py',
+            str(script_dir / 'github_fetcher.py'),
             repo_full,
             since_str,
             '--output', str(output_path),
