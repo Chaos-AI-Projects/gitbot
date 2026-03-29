@@ -73,7 +73,7 @@ python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
 
 This script:
 1. Takes a JSON file produced by `github_fetcher.py`
-2. Builds a prompt instructing Claude to process the GitHub activity
+2. Builds a prompt from `prompt_template.md` (template file with `{json_path}` and `{repo_dir}` placeholders)
 3. Invokes `claude -p` with all tools available
 4. Claude reads the JSON, identifies actionable items, and acts according to priority rules:
    - **Task issues** (label "task" + "@claude implement") → implement and create PR
