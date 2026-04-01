@@ -2,44 +2,47 @@
 """
 Script to fetch GitHub issues, issue comments, and pull request comments
 newer than a given timestamp.
+
+Uses the `gh` CLI for GitHub API access, eliminating the need for
+manual token management via .env files.
 """
 
 import os
 import sys
 import json
 import argparse
+import subprocess
 from datetime import datetime, timezone
-import requests
 from typing import List, Dict, Any, Optional
 
 
 class GitHubFetcher:
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self):
         """
         Initialize the GitHub fetcher.
 
-        Args:
-            token: GitHub personal access token. If not provided, will try to get from GITHUB_TOKEN env var.
+        Uses the `gh` CLI for authentication and API access.
+        Requires `gh` to be installed and authenticated (`gh auth login`).
         """
-        self.token = token or os.getenv('GITHUB_TOKEN')
-        if not self.token:
-            print("Warning: No GitHub token provided. Rate limits will be limited.", file=sys.stderr)
+        # Verify gh is available
+        try:
+            subprocess.run(
+                ['gh', 'auth', 'status'],
+                capture_output=True, text=True, check=True
+            )
+        except FileNotFoundError:
+            print("Error: 'gh' CLI is not installed. Install it from https://cli.github.com/", file=sys.stderr)
+            sys.exit(1)
+        except subprocess.CalledProcessError:
+            print("Error: 'gh' CLI is not authenticated. Run 'gh auth login' first.", file=sys.stderr)
+            sys.exit(1)
 
-        self.headers = {
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'GitHub-Fetcher-Script'
-        }
-        if self.token:
-            self.headers['Authorization'] = f'token {self.token}'
-
-        self.base_url = 'https://api.github.com'
-
-    def _make_request(self, url: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def _gh_api(self, endpoint: str, params: Dict[str, str] = None) -> List[Dict[str, Any]]:
         """
-        Make a request to the GitHub API and handle pagination.
+        Make a paginated request to the GitHub API via `gh api`.
 
         Args:
-            url: The API endpoint URL
+            endpoint: The API endpoint path (e.g., 'repos/owner/repo/issues')
             params: Query parameters
 
         Returns:
@@ -48,35 +51,42 @@ class GitHubFetcher:
         if params is None:
             params = {}
 
-        all_items = []
-        page = 1
-        per_page = 100  # Maximum allowed by GitHub
+        cmd = ['gh', 'api', '--method', 'GET', '--paginate', endpoint]
 
-        while True:
-            params.update({
-                'page': page,
-                'per_page': per_page
-            })
+        for key, value in params.items():
+            cmd.extend(['-f', f'{key}={value}'])
 
-            response = requests.get(url, headers=self.headers, params=params)
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Error fetching {endpoint}: {e.stderr}", file=sys.stderr)
+            return []
 
-            if response.status_code != 200:
-                print(f"Error fetching {url}: {response.status_code} - {response.text}", file=sys.stderr)
+        if not result.stdout.strip():
+            return []
+
+        # gh api --paginate may return multiple JSON arrays concatenated;
+        # parse them all and merge into one list.
+        items = []
+        decoder = json.JSONDecoder()
+        text = result.stdout.strip()
+        pos = 0
+        while pos < len(text):
+            # Skip whitespace
+            while pos < len(text) and text[pos] in ' \t\n\r':
+                pos += 1
+            if pos >= len(text):
                 break
+            obj, end = decoder.raw_decode(text, pos)
+            if isinstance(obj, list):
+                items.extend(obj)
+            else:
+                items.append(obj)
+            pos = end
 
-            items = response.json()
-            if not items:
-                break
-
-            all_items.extend(items)
-
-            # Check if there are more pages
-            if len(items) < per_page:
-                break
-
-            page += 1
-
-        return all_items
+        return items
 
     def get_issues_since(self, repo: str, since: datetime) -> List[Dict[str, Any]]:
         """
@@ -89,13 +99,13 @@ class GitHubFetcher:
         Returns:
             List of issue dictionaries (only open issues)
         """
-        url = f"{self.base_url}/repos/{repo}/issues"
+        endpoint = f"repos/{repo}/issues"
         params = {
             'since': since.isoformat(),
-            'state': 'open'  # Get only open issues (skip closed ones)
+            'state': 'open'
         }
 
-        issues = self._make_request(url, params)
+        issues = self._gh_api(endpoint, params)
 
         # Filter out pull requests (GitHub API includes them in issues endpoint)
         issues_only = [issue for issue in issues if 'pull_request' not in issue]
@@ -113,12 +123,12 @@ class GitHubFetcher:
         Returns:
             List of issue comment dictionaries
         """
-        url = f"{self.base_url}/repos/{repo}/issues/comments"
+        endpoint = f"repos/{repo}/issues/comments"
         params = {
             'since': since.isoformat()
         }
 
-        return self._make_request(url, params)
+        return self._gh_api(endpoint, params)
 
     def get_pull_request_comments_since(self, repo: str, since: datetime) -> List[Dict[str, Any]]:
         """
@@ -131,13 +141,12 @@ class GitHubFetcher:
         Returns:
             List of pull request comment dictionaries
         """
-        # Get review comments on pull requests
-        url = f"{self.base_url}/repos/{repo}/pulls/comments"
+        endpoint = f"repos/{repo}/pulls/comments"
         params = {
             'since': since.isoformat()
         }
 
-        return self._make_request(url, params)
+        return self._gh_api(endpoint, params)
 
     def fetch_all_data(self, repo: str, since: datetime) -> Dict[str, Any]:
         """
@@ -223,11 +232,6 @@ def main():
         default=None
     )
     parser.add_argument(
-        '-t', '--token',
-        help='GitHub personal access token (can also be set via GITHUB_TOKEN env var)',
-        default=None
-    )
-    parser.add_argument(
         '--issues-only',
         action='store_true',
         help='Fetch only issues (not comments)'
@@ -246,7 +250,7 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    fetcher = GitHubFetcher(token=args.token)
+    fetcher = GitHubFetcher()
 
     if args.comments_only:
         # Fetch only comments

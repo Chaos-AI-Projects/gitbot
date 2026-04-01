@@ -7,11 +7,12 @@ This script implements the requirements from issue #1:
 2. For filename in format username_repo-yyyymmdd-hhMMss.done, run github_fetcher.py for username/repo
    and since yyyymmdd-hhMMss, output written to username_repo-$newdatetime
 3. Move the old .done file to an archive directory (only if meaningful data was fetched)
-4. Get github token from .env from the same directory of this script
 
 Enhanced per issue #3:
 - Accepts a directory argument to process .done files from a specific directory
-- Reads .env from the same directory as the script (not current working directory)
+
+Updated per issue #18:
+- Removed .env file / GITHUB_TOKEN handling; github_fetcher.py now uses `gh` CLI for auth
 """
 
 import os
@@ -22,22 +23,6 @@ from datetime import datetime, timezone
 import re
 import subprocess
 from pathlib import Path
-
-
-def load_env_file(env_path):
-    """Load environment variables from .env file."""
-    env_vars = {}
-    if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    # Handle both "KEY=value" and "export KEY=value" formats
-                    if line.startswith('export '):
-                        line = line[7:]  # Remove 'export ' prefix
-                    key, value = line.split('=', 1)
-                    env_vars[key] = value.strip('"\'')
-    return env_vars
 
 
 def parse_done_filename(filename):
@@ -103,18 +88,8 @@ def main():
 
     args = parser.parse_args()
 
-    # Get the directory where this script is located (for .env file)
+    # Get the directory where this script is located (for finding github_fetcher.py)
     script_dir = Path(__file__).parent.absolute()
-    env_path = script_dir / '.env'
-
-    # Load environment variables from .env file in script directory
-    env_vars = load_env_file(env_path)
-    github_token = env_vars.get('GITHUB_TOKEN')
-
-    if not github_token:
-        print("Error: GITHUB_TOKEN not found in .env file", file=sys.stderr)
-        print(f"Looked for .env file at: {env_path}", file=sys.stderr)
-        sys.exit(1)
 
     # Set up directories
     target_dir = Path(args.directory).resolve()
@@ -133,7 +108,6 @@ def main():
         return
 
     print(f"Found {len(done_files)} .done file(s) to process in directory: {target_dir}")
-    print(f"Loading .env file from: {env_path}")
 
     for done_file in done_files:
         print(f"\nProcessing {done_file.name}...")
@@ -164,11 +138,10 @@ def main():
             str(script_dir / 'github_fetcher.py'),
             repo_full,
             since_str,
-            '--output', str(output_path),
-            '--token', github_token
+            '--output', str(output_path)
         ]
 
-        print(f"  Running: {' '.join(cmd[:-3])} <repo> <since> --output {output_filename} --token <hidden>")
+        print(f"  Running: github_fetcher.py {repo_full} '{since_str}' --output {output_filename}")
 
         try:
             # Run the github_fetcher.py script
