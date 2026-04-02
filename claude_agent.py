@@ -132,29 +132,11 @@ def main():
         print(f"Error: {repo_dir} is not the top of a git repository (no .git directory)", file=sys.stderr)
         sys.exit(1)
 
-    # Determine the default branch from env var, or fall back to main/master detection
+    # Require the default branch to be specified via environment variable
     default_branch = os.environ.get('GITBOT_DEFAULT_BRANCH', '')
     if not default_branch:
-        # Auto-detect: try git symbolic-ref, then fall back to main/master
-        try:
-            result = subprocess.run(
-                ['git', 'symbolic-ref', 'refs/remotes/origin/HEAD'],
-                cwd=str(repo_dir), capture_output=True, text=True, check=True,
-            )
-            default_branch = result.stdout.strip().replace('refs/remotes/origin/', '')
-        except subprocess.CalledProcessError:
-            # Check if main or master exists
-            for candidate in ('main', 'master'):
-                check = subprocess.run(
-                    ['git', 'show-ref', '--verify', '--quiet', f'refs/heads/{candidate}'],
-                    cwd=str(repo_dir), capture_output=True,
-                )
-                if check.returncode == 0:
-                    default_branch = candidate
-                    break
-        if not default_branch:
-            print("Error: Could not detect default branch. Set GITBOT_DEFAULT_BRANCH.", file=sys.stderr)
-            sys.exit(1)
+        print("Error: GITBOT_DEFAULT_BRANCH environment variable is not set.", file=sys.stderr)
+        sys.exit(1)
 
     # Verify we are on the default branch
     try:
