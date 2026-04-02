@@ -71,7 +71,7 @@ def rename_json_to_done(json_path: str) -> Path:
     Rename a .json file to .done to mark it as processed.
 
     If the JSON file has already been moved (e.g., by the Claude agent subprocess),
-    creates a .done marker file and archives any other .done files in the same
+    creates a .done marker file and archives all other files in the same
     directory so the next processing round can proceed cleanly.
 
     Args:
@@ -88,13 +88,14 @@ def rename_json_to_done(json_path: str) -> Path:
         print(f"Warning: {path.name} already moved, creating {done_path.name} marker",
               file=sys.stderr)
         done_path.touch()
-        # Move other .done files to archive so they are not reprocessed
+        # Move other files to archive so they are not reprocessed
         archive_dir = path.parent / 'archive'
         archive_dir.mkdir(exist_ok=True)
-        for other in path.parent.glob('*.done'):
-            if other != done_path:
-                shutil.move(str(other), str(archive_dir / other.name))
-                print(f"  Archived {other.name}", file=sys.stderr)
+        for other in path.parent.iterdir():
+            if other == done_path or other == archive_dir or other.name.startswith('.'):
+                continue
+            shutil.move(str(other), str(archive_dir / other.name))
+            print(f"  Archived {other.name}", file=sys.stderr)
     return done_path
 
 
