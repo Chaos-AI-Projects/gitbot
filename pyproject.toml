@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "gitbot"
+version = "0.1.0"
+description = "Automated GitHub agent that fetches activity and acts on it using Claude"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.7"
+dependencies = [
+    "python-dateutil>=2.8.0",
+]
+
+[tool.setuptools]
+py-modules = ["github_fetcher", "process_event_file", "claude_agent"]
+
+[tool.setuptools.data-files]
+"share/gitbot" = ["prompt_template.md"]
+
+[project.scripts]
+gitbot-fetch = "github_fetcher:main"
+gitbot-process = "process_event_file:main"
+gitbot-agent = "claude_agent:main"

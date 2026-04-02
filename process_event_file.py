@@ -132,16 +132,26 @@ def main():
         output_filename = f"{username}_{repo}-{output_timestamp}.json"
         output_path = target_dir / output_filename
 
-        # Build command to run github_fetcher.py
-        cmd = [
-            sys.executable,  # Use the same Python interpreter
-            str(script_dir / 'github_fetcher.py'),
-            repo_full,
-            since_str,
-            '--output', str(output_path)
-        ]
+        # Build command to run github_fetcher
+        # Prefer the installed entry point (gitbot-fetch), fall back to direct script path
+        gitbot_fetch = shutil.which('gitbot-fetch')
+        if gitbot_fetch:
+            cmd = [
+                gitbot_fetch,
+                repo_full,
+                since_str,
+                '--output', str(output_path)
+            ]
+        else:
+            cmd = [
+                sys.executable,
+                str(script_dir / 'github_fetcher.py'),
+                repo_full,
+                since_str,
+                '--output', str(output_path)
+            ]
 
-        print(f"  Running: github_fetcher.py {repo_full} '{since_str}' --output {output_filename}")
+        print(f"  Running: gitbot-fetch {repo_full} '{since_str}' --output {output_filename}")
 
         try:
             # Run the github_fetcher.py script

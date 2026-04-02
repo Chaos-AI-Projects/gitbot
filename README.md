@@ -16,36 +16,29 @@ GitBot is a pipeline that fetches GitHub activity (issues, comments, PR reviews)
 2. **`process_event_file.py`** — Processes `.done` trigger files to automate fetching and archiving results.
 3. **`claude_agent.py`** — Feeds the fetched JSON to Claude CLI, which autonomously acts on the activity.
 
-## Setup
+## Installation
+
+```bash
+pip install git+https://<PUBLIC_REPO_URL>.git
+```
+
+This installs three console commands:
+- `gitbot-fetch` — fetch GitHub activity (wraps `github_fetcher.py`)
+- `gitbot-process` — process `.done` trigger files (wraps `process_event_file.py`)
+- `gitbot-agent` — invoke Claude on fetched activity (wraps `claude_agent.py`)
 
 ### Requirements
 
-- Python 3.6+
-- [GitHub CLI (`gh`)](https://cli.github.com/) — for the agent to interact with GitHub
+- Python 3.7+
+- [GitHub CLI (`gh`)](https://cli.github.com/) — authenticated, used for all GitHub API access
 - [Claude CLI (`claude`)](https://docs.anthropic.com/en/docs/claude-code) — for the agent script
-
-### Installation
-
-```bash
-pip install -r requirements.txt
-```
-
-### Configuration
-
-Create a `.env` file in the project root with your GitHub token:
-
-```
-GITHUB_TOKEN=your_token_here
-```
-
-This token needs at minimum `repo` scope for private repositories or `public_repo` for public ones. Without a token, public repos can still be accessed but with stricter rate limits (60 vs 5,000 requests/hour).
 
 ## Usage
 
-### `github_fetcher.py` — Fetch GitHub Activity
+### `gitbot-fetch` — Fetch GitHub Activity
 
 ```bash
-python3 github_fetcher.py <owner/repo> <since-timestamp> [options]
+gitbot-fetch <owner/repo> <since-timestamp> [options]
 ```
 
 **Arguments:**
@@ -54,7 +47,6 @@ python3 github_fetcher.py <owner/repo> <since-timestamp> [options]
 
 **Options:**
 - `-o, --output`: Output file path (default: stdout)
-- `-t, --token`: GitHub personal access token (can also use `GITHUB_TOKEN` env var)
 - `--issues-only`: Fetch only issues (not comments)
 - `--comments-only`: Fetch only comments (both issue and PR comments)
 
@@ -62,17 +54,13 @@ python3 github_fetcher.py <owner/repo> <since-timestamp> [options]
 
 ```bash
 # Fetch all data newer than March 1, 2026
-python3 github_fetcher.py torvalds/linux 2026-03-01
+gitbot-fetch torvalds/linux 2026-03-01
 
 # Fetch only issues
-python3 github_fetcher.py torvalds/linux "2026-03-15 10:30:00" --issues-only
+gitbot-fetch torvalds/linux "2026-03-15 10:30:00" --issues-only
 
 # Fetch comments and save to file
-python3 github_fetcher.py torvalds/linux 2026-03-10 --comments-only --output comments.json
-
-# With GitHub token
-export GITHUB_TOKEN=your_token_here
-python3 github_fetcher.py torvalds/linux 2026-03-01
+gitbot-fetch torvalds/linux 2026-03-10 --comments-only --output comments.json
 ```
 
 **Notes:**
@@ -87,32 +75,31 @@ python3 github_fetcher.py torvalds/linux 2026-03-01
 - `repository`: The repository that was queried
 - `since`: The since timestamp used for filtering
 
-### `process_event_file.py` — Automate Fetching
+### `gitbot-process` — Automate Fetching
 
 ```bash
-python3 process_event_file.py [directory]
+gitbot-process [directory]
 ```
 
-This script processes `.done` trigger files to automatically run `github_fetcher.py`:
+This script processes `.done` trigger files to automatically run `gitbot-fetch`:
 
 1. Scans the specified directory (default: current directory) for `.done` files
 2. Parses filenames matching `username_repo-yyyymmdd-hhMMss.done`
-3. Runs `github_fetcher.py` for each matched file
+3. Runs `gitbot-fetch` for each matched file
 4. Writes output to `username_repo-YYYYMMDD-HHMMSS.json` (using local time in filenames for readability)
 5. Only moves `.done` files to `archive/` if meaningful data was fetched (issues, comments, or PR comments)
 6. Removes empty output files to avoid clutter
 
 **Notes:**
-- Reads `.env` from the script's own directory, not the current working directory
 - Converts local timestamps from `.done` filenames to UTC for the GitHub API
 
-### `claude_agent.py` — Invoke Claude on GitHub Activity
+### `gitbot-agent` — Invoke Claude on GitHub Activity
 
 ```bash
-python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
+gitbot-agent <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
 ```
 
-Takes a JSON file produced by `github_fetcher.py` and invokes Claude CLI to autonomously act on the activity.
+Takes a JSON file produced by `gitbot-fetch` and invokes Claude CLI to autonomously act on the activity.
 
 **Options:**
 - `--dry-run`: Print the prompt without invoking Claude
@@ -133,27 +120,73 @@ Takes a JSON file produced by `github_fetcher.py` and invokes Claude CLI to auto
 - Content starting with `%claude` is skipped on subsequent runs to avoid re-processing
 - After completion, the JSON file is renamed to `.done` to prevent re-processing
 
-## End-to-End Workflow
+## Automating the Whole Thing
 
-A typical automated run looks like this:
+Here's how to set up GitBot to run continuously on a target repository.
+
+### 1. Install and configure `gh` CLI
+
+Install the [GitHub CLI](https://cli.github.com/) and authenticate:
 
 ```bash
-# 1. Create a trigger file (or let your scheduler do it)
-touch ChaosEternal_gitbot-20260328-100000.done
-
-# 2. Process trigger files — fetches GitHub activity
-python3 process_event_file.py ./jobs
-
-# 3. Run the agent on the fetched JSON
-python3 claude_agent.py ./jobs/ChaosEternal_gitbot-20260328-161027.json --repo-dir /path/to/repo
+gh auth login
 ```
 
-## Dependencies
+Make sure your token has these scopes:
+- Read/write issues and comments
+- Read/create/update pull requests
 
-- `requests` (>=2.25.1) — HTTP calls to the GitHub API
-- `python-dateutil` (>=2.8.0) — Date parsing
+### 2. Install and configure Claude CLI
 
-Install with:
+Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and make sure it's authenticated and working:
+
 ```bash
-pip install -r requirements.txt
+claude --version
 ```
+
+### 3. Install GitBot
+
+```bash
+pip install git+https://<PUBLIC_REPO_URL>.git
+```
+
+### 4. Create a private working repo and clone it
+
+Create a private repo on GitHub where the agent will operate, then clone it:
+
+```bash
+gh repo create my-project --private --clone
+cd my-project
+```
+
+### 5. Create the `.jobs` directory and initial `.done` file
+
+```bash
+mkdir .jobs
+touch .jobs/owner_repo-$(date +%Y%m%d-%H%M%S).done
+```
+
+Replace `owner_repo` with the target repo using underscore as separator (e.g., `torvalds_linux`).
+
+### 6. Run the automation loop
+
+```bash
+while sleep 300; do
+  gitbot-process .jobs/
+  ls .jobs/*.json 2>/dev/null && (
+    git checkout master
+    git pull
+    for i in .jobs/*.json; do gitbot-agent "$i"; done
+  )
+done
+```
+
+This loop:
+- Polls every 5 minutes (300 seconds)
+- Fetches new GitHub activity via `gitbot-process`
+- If any `.json` files were produced, checks out master, pulls latest, and runs the agent on each one
+- The agent processes the activity and renames `.json` to `.done` when finished
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
