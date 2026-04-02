@@ -14,12 +14,13 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["github_fetcher", "process_event_file", "claude_agent"]
+py-modules = ["github_fetcher", "process_event_file", "claude_agent", "gitbot_run"]
 
 [tool.setuptools.data-files]
-"share/gitbot" = ["prompt_template.md"]
+"share/gitbot" = ["prompt_template.md", "gitbot-run.sh"]
 
 [project.scripts]
 gitbot-fetch = "github_fetcher:main"
 gitbot-process = "process_event_file:main"
 gitbot-agent = "claude_agent:main"
+gitbot-run = "gitbot_run:main"
