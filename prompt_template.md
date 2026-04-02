@@ -20,7 +20,7 @@ Process each item from the JSON according to these rules. Work through them in p
 
 ### Rule 1: Implement task issues
 If an issue has the label "task" AND its body or any comment contains "@claude implement":
-1. Create a feature branch from master with a descriptive name (e.g., `feature/issue-N-short-description`)
+1. Create a feature branch from {default_branch} with a descriptive name (e.g., `feature/issue-N-short-description`)
 2. Implement the requested changes
 3. Commit with a clear message referencing the issue number
 4. Push the branch and create a PR with `gh pr create`
@@ -48,7 +48,7 @@ If an issue or comment is ambiguous or unclear:
 
 - **Prefix all GitHub content you create** (issue comments, PR descriptions, review replies) with `%claude` on the first line so humans can identify agent-generated content.
 - **Skip any content that starts with `%claude`** — this was created by a previous agent run, do not process it again.
-- **Git workflow**: Always branch from master. Use descriptive branch names. Never commit directly to master.
+- **Git workflow**: Always branch from {default_branch}. Use descriptive branch names. Never commit directly to {default_branch}.
 - **Be conservative**: If unsure, ask for clarification (Rule 4) rather than making assumptions.
 - **One thing at a time**: Process the most important item fully before moving to the next.
 - If there is nothing actionable in the JSON (no new issues, no review comments needing response), just say so and exit.

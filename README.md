@@ -171,21 +171,28 @@ Replace `owner_repo` with the target repo using underscore as separator (e.g., `
 ### 6. Run the automation loop
 
 ```bash
-while sleep 300; do
-  gitbot-process .jobs/
-  ls .jobs/*.json 2>/dev/null && (
-    git checkout master
-    git pull
-    for i in .jobs/*.json; do gitbot-agent "$i"; done
-  )
-done
+gitbot-run.sh .jobs/
 ```
 
-This loop:
-- Polls every 5 minutes (300 seconds)
+Or with options:
+
+```bash
+gitbot-run.sh .jobs/ --branch main --interval 600
+```
+
+**Arguments:**
+- `jobs_dir` (optional): Directory containing `.done`/`.json` files (default: `.jobs`)
+- `--branch BRANCH`: Override the default git branch (default: auto-detect from `origin/HEAD`)
+- `--interval SECONDS`: Poll interval in seconds (default: 300)
+
+The script:
+- Runs pre-flight checks (verifies `gh`, `claude`, `gitbot-process`, `gitbot-agent` are available)
+- Auto-detects the default branch (or uses `--branch`), exports it as `GITBOT_DEFAULT_BRANCH`
+- Polls every N seconds (default: 300)
 - Fetches new GitHub activity via `gitbot-process`
-- If any `.json` files were produced, checks out master, pulls latest, and runs the agent on each one
-- The agent processes the activity and renames `.json` to `.done` when finished
+- If any `.json` files were produced, checks out the default branch, pulls latest, and runs the agent on each one
+- Handles `Ctrl-C` / `SIGTERM` for clean shutdown
+- Logs with timestamps
 
 ## License
 
