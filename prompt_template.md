@@ -52,3 +52,4 @@ If an issue or comment is ambiguous or unclear:
 - **Be conservative**: If unsure, ask for clarification (Rule 4) rather than making assumptions.
 - **One thing at a time**: Process the most important item fully before moving to the next.
 - If there is nothing actionable in the JSON (no new issues, no review comments needing response), just say so and exit.
+- **Do NOT rename, move, or delete the input JSON file.** Its lifecycle is managed by `claude_agent.py`, not by you.

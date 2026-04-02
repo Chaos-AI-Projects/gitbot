@@ -9,6 +9,7 @@ the JSON file is renamed to .done to prevent re-processing.
 
 import os
 import sys
+import shutil
 import subprocess
 import argparse
 from pathlib import Path
@@ -69,6 +70,10 @@ def rename_json_to_done(json_path: str) -> Path:
     """
     Rename a .json file to .done to mark it as processed.
 
+    If the JSON file has already been moved (e.g., by the Claude agent subprocess),
+    creates a .done marker file and archives all other files in the same
+    directory so the next processing round can proceed cleanly.
+
     Args:
         json_path: Path to the JSON file
 
@@ -77,7 +82,20 @@ def rename_json_to_done(json_path: str) -> Path:
     """
     path = Path(json_path)
     done_path = path.with_suffix('.done')
-    path.rename(done_path)
+    try:
+        path.rename(done_path)
+    except FileNotFoundError:
+        print(f"Warning: {path.name} already moved, creating {done_path.name} marker",
+              file=sys.stderr)
+        done_path.touch()
+        # Move other files to archive so they are not reprocessed
+        archive_dir = path.parent / 'archive'
+        archive_dir.mkdir(exist_ok=True)
+        for other in path.parent.iterdir():
+            if other == done_path or other == archive_dir or other.name.startswith('.'):
+                continue
+            shutil.move(str(other), str(archive_dir / other.name))
+            print(f"  Archived {other.name}", file=sys.stderr)
     return done_path
 
 
