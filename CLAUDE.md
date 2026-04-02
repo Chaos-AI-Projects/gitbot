@@ -73,7 +73,7 @@ python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
 
 This script:
 1. Takes a JSON file produced by `github_fetcher.py`
-2. Builds a prompt from `prompt_template.md` (template file with `{json_path}` and `{repo_dir}` placeholders)
+2. Builds a prompt from `prompt_template.md` (template file with `{json_path}`, `{repo_dir}`, and `{default_branch}` placeholders)
 3. Invokes `claude -p` with all tools available
 4. Claude reads the JSON, identifies actionable items, and acts according to priority rules:
    - **Task issues** (label "task" + "@claude implement") → implement and create PR
@@ -86,7 +86,24 @@ This script:
 Options:
 - `--dry-run`: Print the prompt without invoking Claude
 - `--model MODEL`: Override the Claude model
-- `--repo-dir DIR`: Set the working directory for Claude (default: current working directory; must be git repo root on main/master branch)
+- `--repo-dir DIR`: Set the working directory for Claude (default: current working directory; must be git repo root on default branch)
+
+Environment variables:
+- `GITBOT_DEFAULT_BRANCH`: Override the default branch name (auto-detected if not set). Set automatically by `gitbot-run.sh`.
+
+#### Automation Script (gitbot-run.sh)
+Main automation loop that wraps the entire pipeline:
+```bash
+./gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS]
+```
+
+This script:
+1. Runs pre-flight checks (`gh`, `claude`, `gitbot-process`, `gitbot-agent`)
+2. Auto-detects the default git branch (or accepts `--branch` override)
+3. Exports `GITBOT_DEFAULT_BRANCH` for downstream tools
+4. Polls for new GitHub activity at the specified interval
+5. Fetches activity via `gitbot-process`, then runs `gitbot-agent` on each JSON result
+6. Handles SIGINT/SIGTERM for clean shutdown
 
 ### Working with Private Repositories
 To access private repositories, you must provide a GitHub personal access token with appropriate permissions (at minimum, `repo` scope for private repos or `public_repo` for public repos):

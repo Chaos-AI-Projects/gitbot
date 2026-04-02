@@ -7,13 +7,14 @@ creating task breakdowns, and requesting human input when needed. After Claude f
 the JSON file is renamed to .done to prevent re-processing.
 """
 
+import os
 import sys
 import subprocess
 import argparse
 from pathlib import Path
 
 
-def build_prompt(json_path: str, repo_dir: str) -> str:
+def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master') -> str:
     """
     Construct the prompt that instructs Claude to process a GitHub activity JSON file.
 
@@ -23,6 +24,7 @@ def build_prompt(json_path: str, repo_dir: str) -> str:
     Args:
         json_path: Absolute path to the JSON file from github_fetcher.py
         repo_dir: Absolute path to the repository working directory
+        default_branch: The default git branch name
 
     Returns:
         The prompt string to pass to Claude CLI
@@ -32,7 +34,8 @@ def build_prompt(json_path: str, repo_dir: str) -> str:
     if not template_path.exists():
         template_path = Path(sys.prefix) / 'share' / 'gitbot' / 'prompt_template.md'
     template = template_path.read_text()
-    return template.format(json_path=json_path, repo_dir=repo_dir)
+    return template.format(json_path=json_path, repo_dir=repo_dir,
+                           default_branch=default_branch)
 
 
 def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
@@ -129,22 +132,28 @@ def main():
         print(f"Error: {repo_dir} is not the top of a git repository (no .git directory)", file=sys.stderr)
         sys.exit(1)
 
-    # Verify we are on main or master branch
+    # Require the default branch to be specified via environment variable
+    default_branch = os.environ.get('GITBOT_DEFAULT_BRANCH', '')
+    if not default_branch:
+        print("Error: GITBOT_DEFAULT_BRANCH environment variable is not set.", file=sys.stderr)
+        sys.exit(1)
+
+    # Verify we are on the default branch
     try:
         result = subprocess.run(
             ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
             cwd=str(repo_dir), capture_output=True, text=True, check=True,
         )
         current_branch = result.stdout.strip()
-        if current_branch not in ('main', 'master'):
-            print(f"Error: Must be on main or master branch, currently on '{current_branch}'", file=sys.stderr)
+        if current_branch != default_branch:
+            print(f"Error: Must be on {default_branch} branch, currently on '{current_branch}'", file=sys.stderr)
             sys.exit(1)
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to determine git branch: {e.stderr.strip()}", file=sys.stderr)
         sys.exit(1)
 
     # Build the prompt
-    prompt = build_prompt(str(json_path), str(repo_dir))
+    prompt = build_prompt(str(json_path), str(repo_dir), default_branch=default_branch)
 
     if args.dry_run:
         print("=== DRY RUN — Prompt that would be sent to Claude ===\n")
