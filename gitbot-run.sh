@@ -89,11 +89,11 @@ preflight() {
 
     # Check gitbot-process and gitbot-agent are available
     if ! command -v gitbot-process &>/dev/null; then
-        echo "Error: 'gitbot-process' is not on PATH. Install gitbot first: pip install ." >&2
+        echo "Error: 'gitbot-process' is not on PATH. Install gitbot first — follow the README." >&2
         ok=false
     fi
     if ! command -v gitbot-agent &>/dev/null; then
-        echo "Error: 'gitbot-agent' is not on PATH. Install gitbot first: pip install ." >&2
+        echo "Error: 'gitbot-agent' is not on PATH. Install gitbot first — follow the README." >&2
         ok=false
     fi
 
