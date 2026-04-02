@@ -160,12 +160,6 @@ log "  Poll interval:  ${POLL_INTERVAL}s"
 log "Press Ctrl-C to stop."
 
 while $RUNNING; do
-    if ! sleep "$POLL_INTERVAL" & wait $!; then
-        break
-    fi
-
-    $RUNNING || break
-
     log "Polling for new activity..."
     gitbot-process "$JOBS_DIR" || {
         log "Warning: gitbot-process exited with error, continuing..."
@@ -179,28 +173,30 @@ while $RUNNING; do
 
     if [[ ${#json_files[@]} -eq 0 ]]; then
         log "No new activity to process."
-        continue
+    else
+        log "Found ${#json_files[@]} JSON file(s) to process."
+
+        # Checkout default branch and pull latest
+        if ! git checkout "$DEFAULT_BRANCH" 2>/dev/null; then
+            log "Warning: Could not checkout $DEFAULT_BRANCH (uncommitted changes?). Skipping agent run."
+        else
+            if ! git pull 2>/dev/null; then
+                log "Warning: git pull failed. Continuing with current state."
+            fi
+
+            for json_file in "${json_files[@]}"; do
+                $RUNNING || break
+                log "Processing: $json_file"
+                gitbot-agent "$json_file" --repo-dir "$(pwd)" || {
+                    log "Warning: gitbot-agent failed for $json_file"
+                }
+            done
+        fi
     fi
 
-    log "Found ${#json_files[@]} JSON file(s) to process."
-
-    # Checkout default branch and pull latest
-    if ! git checkout "$DEFAULT_BRANCH" 2>/dev/null; then
-        log "Warning: Could not checkout $DEFAULT_BRANCH (uncommitted changes?). Skipping agent run."
-        continue
-    fi
-
-    if ! git pull 2>/dev/null; then
-        log "Warning: git pull failed. Continuing with current state."
-    fi
-
-    for json_file in "${json_files[@]}"; do
-        $RUNNING || break
-        log "Processing: $json_file"
-        gitbot-agent "$json_file" --repo-dir "$(pwd)" || {
-            log "Warning: gitbot-agent failed for $json_file"
-        }
-    done
+    $RUNNING || break
+    log "Sleeping ${POLL_INTERVAL}s..."
+    sleep "$POLL_INTERVAL" || break
 done
 
 log "GitBot automation stopped."

@@ -189,7 +189,11 @@ def main():
     exit_code = invoke_claude(prompt, str(repo_dir), model=args.model)
     print(f"\nClaude exited with code: {exit_code}")
 
-    # Rename JSON to .done regardless of exit code (prevents re-processing)
+    if exit_code != 0:
+        print(f"Warning: Claude exited with non-zero code {exit_code}, "
+              f"leaving {json_path.name} for retry.", file=sys.stderr)
+        sys.exit(exit_code)
+
     done_path = rename_json_to_done(str(json_path))
     print(f"Renamed {json_path.name} → {done_path.name}")
 
