@@ -30,10 +30,7 @@ def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master') 
     Returns:
         The prompt string to pass to Claude CLI
     """
-    # Look for template next to this script first (dev), then in installed data location
     template_path = Path(__file__).resolve().parent / 'prompt_template.md'
-    if not template_path.exists():
-        template_path = Path(sys.prefix) / 'share' / 'gitbot' / 'prompt_template.md'
     template = template_path.read_text()
     return template.format(json_path=json_path, repo_dir=repo_dir,
                            default_branch=default_branch)

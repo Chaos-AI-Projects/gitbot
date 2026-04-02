@@ -19,13 +19,10 @@ GitBot is a pipeline that fetches GitHub activity (issues, comments, PR reviews)
 ## Installation
 
 ```bash
-pip install git+https://<PUBLIC_REPO_URL>.git
+git clone https://github.com/ChaosEternal/gitbot.git
+cd gitbot
+pip install -r requirements.txt
 ```
-
-This installs three console commands:
-- `gitbot-fetch` — fetch GitHub activity (wraps `github_fetcher.py`)
-- `gitbot-process` — process `.done` trigger files (wraps `process_event_file.py`)
-- `gitbot-agent` — invoke Claude on fetched activity (wraps `claude_agent.py`)
 
 ### Requirements
 
@@ -35,10 +32,10 @@ This installs three console commands:
 
 ## Usage
 
-### `gitbot-fetch` — Fetch GitHub Activity
+### `github_fetcher.py` — Fetch GitHub Activity
 
 ```bash
-gitbot-fetch <owner/repo> <since-timestamp> [options]
+python3 github_fetcher.py <owner/repo> <since-timestamp> [options]
 ```
 
 **Arguments:**
@@ -54,13 +51,13 @@ gitbot-fetch <owner/repo> <since-timestamp> [options]
 
 ```bash
 # Fetch all data newer than March 1, 2026
-gitbot-fetch torvalds/linux 2026-03-01
+python3 github_fetcher.py torvalds/linux 2026-03-01
 
 # Fetch only issues
-gitbot-fetch torvalds/linux "2026-03-15 10:30:00" --issues-only
+python3 github_fetcher.py torvalds/linux "2026-03-15 10:30:00" --issues-only
 
 # Fetch comments and save to file
-gitbot-fetch torvalds/linux 2026-03-10 --comments-only --output comments.json
+python3 github_fetcher.py torvalds/linux 2026-03-10 --comments-only --output comments.json
 ```
 
 **Notes:**
@@ -75,17 +72,17 @@ gitbot-fetch torvalds/linux 2026-03-10 --comments-only --output comments.json
 - `repository`: The repository that was queried
 - `since`: The since timestamp used for filtering
 
-### `gitbot-process` — Automate Fetching
+### `process_event_file.py` — Automate Fetching
 
 ```bash
-gitbot-process [directory]
+python3 process_event_file.py [directory]
 ```
 
-This script processes `.done` trigger files to automatically run `gitbot-fetch`:
+This script processes `.done` trigger files to automatically run `github_fetcher.py`:
 
 1. Scans the specified directory (default: current directory) for `.done` files
 2. Parses filenames matching `username_repo-yyyymmdd-hhMMss.done`
-3. Runs `gitbot-fetch` for each matched file
+3. Runs `github_fetcher.py` for each matched file
 4. Writes output to `username_repo-YYYYMMDD-HHMMSS.json` (using local time in filenames for readability)
 5. Only moves `.done` files to `archive/` if meaningful data was fetched (issues, comments, or PR comments)
 6. Removes empty output files to avoid clutter
@@ -93,13 +90,13 @@ This script processes `.done` trigger files to automatically run `gitbot-fetch`:
 **Notes:**
 - Converts local timestamps from `.done` filenames to UTC for the GitHub API
 
-### `gitbot-agent` — Invoke Claude on GitHub Activity
+### `claude_agent.py` — Invoke Claude on GitHub Activity
 
 ```bash
-gitbot-agent <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
+python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
 ```
 
-Takes a JSON file produced by `gitbot-fetch` and invokes Claude CLI to autonomously act on the activity.
+Takes a JSON file produced by `github_fetcher.py` and invokes Claude CLI to autonomously act on the activity.
 
 **Options:**
 - `--dry-run`: Print the prompt without invoking Claude
@@ -144,10 +141,11 @@ Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and make s
 claude --version
 ```
 
-### 3. Install GitBot
+### 3. Clone GitBot and install dependencies
 
 ```bash
-pip install git+https://<PUBLIC_REPO_URL>.git
+git clone https://github.com/ChaosEternal/gitbot.git
+pip install -r gitbot/requirements.txt
 ```
 
 ### 4. Create a private working repo and clone it
@@ -171,13 +169,13 @@ Replace `owner_repo` with the target repo using underscore as separator (e.g., `
 ### 6. Run the automation loop
 
 ```bash
-gitbot-run.sh .jobs/
+/path/to/gitbot/gitbot-run.sh .jobs/
 ```
 
 Or with options:
 
 ```bash
-gitbot-run.sh .jobs/ --branch main --interval 600
+/path/to/gitbot/gitbot-run.sh .jobs/ --branch main --interval 600
 ```
 
 **Arguments:**
@@ -186,10 +184,10 @@ gitbot-run.sh .jobs/ --branch main --interval 600
 - `--interval SECONDS`: Poll interval in seconds (default: 300)
 
 The script:
-- Runs pre-flight checks (verifies `gh`, `claude`, `gitbot-process`, `gitbot-agent` are available)
+- Runs pre-flight checks (verifies `gh`, `claude`, and the Python scripts are available)
 - Auto-detects the default branch (or uses `--branch`), exports it as `GITBOT_DEFAULT_BRANCH`
 - Polls every N seconds (default: 300)
-- Fetches new GitHub activity via `gitbot-process`
+- Fetches new GitHub activity via `process_event_file.py`
 - If any `.json` files were produced, checks out the default branch, pulls latest, and runs the agent on each one
 - Handles `Ctrl-C` / `SIGTERM` for clean shutdown
 - Logs with timestamps

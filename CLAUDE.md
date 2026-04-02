@@ -62,8 +62,7 @@ This script:
 5. **Only moves .done files to archive if meaningful data was fetched** (issues, comments, or PR comments)
 6. **Removes output file if no meaningful data was found** (to avoid clutter)
 7. **Accepts an optional directory argument** to process .done files from a specific directory
-8. **Reads .env file from the script's directory** (not current working directory)
-9. Gets GitHub token from .env file
+8. Locates `github_fetcher.py` relative to its own directory
 
 #### Claude Agent Script (claude_agent.py)
 Invoke Claude CLI to autonomously act on GitHub activity:
@@ -98,11 +97,11 @@ Main automation loop that wraps the entire pipeline:
 ```
 
 This script:
-1. Runs pre-flight checks (`gh`, `claude`, `gitbot-process`, `gitbot-agent`)
+1. Runs pre-flight checks (`gh`, `claude`, and Python scripts in the same directory)
 2. Auto-detects the default git branch (or accepts `--branch` override)
 3. Exports `GITBOT_DEFAULT_BRANCH` for downstream tools
 4. Polls for new GitHub activity at the specified interval
-5. Fetches activity via `gitbot-process`, then runs `gitbot-agent` on each JSON result
+5. Fetches activity via `process_event_file.py`, then runs `claude_agent.py` on each JSON result
 6. Handles SIGINT/SIGTERM for clean shutdown
 
 ### Working with Private Repositories

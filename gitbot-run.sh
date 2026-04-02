@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# ── Script directory (all Python scripts live here) ──────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ── Defaults ──────────────────────────────────────────────────────────────────
 JOBS_DIR=".jobs"
 POLL_INTERVAL=300
@@ -87,13 +90,13 @@ preflight() {
         ok=false
     fi
 
-    # Check gitbot-process and gitbot-agent are available
-    if ! command -v gitbot-process &>/dev/null; then
-        echo "Error: 'gitbot-process' is not on PATH. Install gitbot first — follow the README." >&2
+    # Check Python scripts exist in SCRIPT_DIR
+    if [[ ! -f "$SCRIPT_DIR/process_event_file.py" ]]; then
+        echo "Error: 'process_event_file.py' not found in $SCRIPT_DIR." >&2
         ok=false
     fi
-    if ! command -v gitbot-agent &>/dev/null; then
-        echo "Error: 'gitbot-agent' is not on PATH. Install gitbot first — follow the README." >&2
+    if [[ ! -f "$SCRIPT_DIR/claude_agent.py" ]]; then
+        echo "Error: 'claude_agent.py' not found in $SCRIPT_DIR." >&2
         ok=false
     fi
 
@@ -161,8 +164,8 @@ log "Press Ctrl-C to stop."
 
 while $RUNNING; do
     log "Polling for new activity..."
-    gitbot-process "$JOBS_DIR" || {
-        log "Warning: gitbot-process exited with error, continuing..."
+    python3 "$SCRIPT_DIR/process_event_file.py" "$JOBS_DIR" || {
+        log "Warning: process_event_file.py exited with error, continuing..."
     }
 
     # Check for .json files
@@ -187,8 +190,8 @@ while $RUNNING; do
             for json_file in "${json_files[@]}"; do
                 $RUNNING || break
                 log "Processing: $json_file"
-                gitbot-agent "$json_file" --repo-dir "$(pwd)" || {
-                    log "Warning: gitbot-agent failed for $json_file"
+                python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)" || {
+                    log "Warning: claude_agent.py failed for $json_file"
                 }
             done
         fi
