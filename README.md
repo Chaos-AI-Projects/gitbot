@@ -2,6 +2,31 @@
 
 GitBot is a pipeline that fetches GitHub activity (issues, comments, PR reviews) and feeds it to a Claude-powered agent that autonomously acts on it — implementing tasks, responding to reviews, creating task breakdowns, and requesting clarification when needed.
 
+## Why GitBot?
+
+Many AI-powered automation tools keep an LLM running continuously or trigger it on every webhook event, which leads to high token consumption — even when nothing meaningful has happened. GitBot takes a different approach:
+
+- **Poll-based architecture** — GitBot fetches GitHub activity on a schedule and only invokes Claude when there is actual new activity to process. No wasted LLM calls when nothing has changed.
+- **Event-driven, not speculative** — Claude is called only on concrete, actionable items (new issues, review comments), never speculatively. This significantly reduces token usage compared to always-on agents.
+- **Simple state management** — The `.done` file mechanism provides file-based state tracking without requiring a database or webhook infrastructure. Easy to inspect, easy to debug.
+- **Cost-effective for real-world repos** — Most repositories have intermittent activity. GitBot's design means you only pay for tokens when there's genuine work to do.
+
+### Comparison with GitHub Actions + Claude
+
+An alternative approach is to run Claude directly inside GitHub Actions, triggered by webhooks on issue or PR events. Here's how GitBot compares:
+
+| | **GitBot (poll-based)** | **GitHub Actions + Claude** |
+|---|---|---|
+| **Trigger model** | Polls on a schedule; batches activity | Fires on every webhook event |
+| **Token usage** | Low — Claude is invoked only when there's real work | Higher — every event triggers a full LLM invocation, including noisy ones (label changes, assignment, etc.) |
+| **Infrastructure** | Runs anywhere (local machine, VM, server) | Tied to GitHub-hosted or self-hosted runners |
+| **State management** | Simple `.done` files; easy to inspect and retry | Stateless by default; needs external storage for cross-run state |
+| **Rate / cost control** | Natural batching reduces API calls; easy to tune poll interval | Requires careful workflow filtering to avoid runaway costs |
+| **Debugging** | Local logs, local files; straightforward | Scattered across workflow run logs; harder to reproduce locally |
+| **Privacy** | Code and prompts stay on your machine | Code and prompts pass through GitHub's runner environment |
+
+In short, GitHub Actions is a good fit when you need instant reaction to every event and are already invested in Actions infrastructure. GitBot is better when you want cost-efficient, self-hosted automation that only invokes the LLM when there's meaningful work — which is most repositories most of the time.
+
 ## How It Works
 
 ```
