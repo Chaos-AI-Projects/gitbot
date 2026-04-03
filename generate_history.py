@@ -137,10 +137,12 @@ def build_timeline(repo: str, since: Optional[str] = None) -> List[Dict[str, Any
             title = issue['title']
             labels = ', '.join(l['name'] for l in issue.get('labels', []))
             label_str = f" [{labels}]" if labels else ""
+            body = issue.get('body', '').strip()
+            body_str = f"\n\n````\n{body}\n````\n" if body else "\n"
             events.append({
                 'timestamp': created,
                 'kind': 'issue_created',
-                'text': f"## {fmt_ts(created)} -- Issue #{issue['number']} created by @{user}: \"{title}\"{label_str}\n"
+                'text': f"## {fmt_ts(created)} -- Issue #{issue['number']} created by @{user}: \"{title}\"{label_str}{body_str}"
             })
         if issue.get('closed_at'):
             closed = issue['closed_at']
