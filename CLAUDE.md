@@ -104,6 +104,27 @@ This script:
 5. Fetches activity via `process_event_file.py`, then runs `claude_agent.py` on each JSON result
 6. Handles SIGINT/SIGTERM for clean shutdown
 
+#### History Generator (generate_history.py)
+Generate a chronological Markdown history of a GitHub repository:
+```bash
+python3 generate_history.py <owner/repo> [-o OUTPUT] [--since TIMESTAMP] [--append]
+```
+
+This standalone script:
+1. Fetches all issues, issue comments, PR events, and PR comments via `gh` CLI
+2. Merges all events into a single chronological timeline
+3. Renders as Markdown with `##` headings per event and comments in fenced code blocks
+
+Examples:
+- Full history to stdout:
+  ```bash
+  python3 generate_history.py ChaosEternal/gitbot
+  ```
+- Incremental update since a date, appending to existing file:
+  ```bash
+  python3 generate_history.py ChaosEternal/gitbot --since 2026-04-01 -o HISTORY.md --append
+  ```
+
 ### Working with Private Repositories
 To access private repositories, you must provide a GitHub personal access token with appropriate permissions (at minimum, `repo` scope for private repos or `public_repo` for public repos):
 
