@@ -1581,3 +1581,132 @@ Done — ran `generate_history.py ChaosEternal/gitbot -o HISTORY.md` which colle
 ````
 Issue contents are missing
 ````
+
+## 2026-04-03 03:19 UTC -- Issue #35 comment by @ChaosEternal
+
+````
+%claude
+Fixed — issue bodies are now included in the history timeline. The `generate_history.py` script now renders the issue body text (in a fenced code block) right after each issue creation entry. Regenerated HISTORY.md with the updated script.
+````
+
+## 2026-04-03 03:19 UTC -- PR #35 comment by @ChaosEternal
+
+````
+%claude
+Fixed — issue bodies are now included in the history timeline. The `generate_history.py` script now renders the issue body text (in a fenced code block) right after each issue creation entry. Regenerated HISTORY.md with the updated script.
+````
+
+## 2026-04-03 09:39 UTC -- PR #35 merged
+
+## 2026-04-03 09:39 UTC -- Issue #34 closed
+
+## 2026-04-03 09:39 UTC -- Issue #34 closed by @ChaosEternal
+
+## 2026-04-03 09:42 UTC -- Issue #36 created by @ChaosEternal: "Improve readme"
+
+````
+In the readme, explain why this tool.
+The main reason is the execution of claude is not triggered by LLM, so we can save a lot of token usage.
+````
+
+## 2026-04-03 09:45 UTC -- Issue #36 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown for Issue #36: Improve README
+
+After reviewing the current README and the issue description, here's a plan for adding a "Why GitBot?" section:
+
+### Tasks
+
+- [ ] **Add a "Why GitBot?" section** near the top of README.md (after the opening paragraph, before "How It Works")
+  - Explain the core design philosophy: GitBot uses a **poll-based architecture** rather than LLM-triggered execution
+  - Highlight the key benefit: Claude is only invoked when there is actual new GitHub activity to process, which **significantly reduces token usage** compared to always-on LLM agents
+  - Contrast with alternatives: many AI agent setups keep an LLM running continuously or trigger it on every webhook; GitBot instead fetches activity on a schedule and only calls Claude when there's something actionable
+
+- [ ] **Suggested content points to cover:**
+  1. The pipeline is event-driven via polling — no wasted LLM calls when nothing has happened
+  2. Claude is invoked only on concrete, actionable items (new issues, review comments), not speculatively
+  3. This makes the tool cost-effective for long-running automation on repositories with intermittent activity
+  4. The `.done` file mechanism provides simple, file-based state management without requiring a database or webhook infrastructure
+
+This is a documentation-only change — no code modifications needed.
+````
+
+## 2026-04-03 09:50 UTC -- Issue #36 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-03 09:51 UTC -- PR #37 created by @ChaosEternal: "Add "Why GitBot?" section to README"
+
+## 2026-04-03 09:51 UTC -- Issue #36 comment by @ChaosEternal
+
+````
+%claude
+
+Implementation started — PR #37 adds a "Why GitBot?" section to the README covering the poll-based architecture and token efficiency design philosophy.
+
+https://github.com/ChaosEternal/gitbot/pull/37
+````
+
+## 2026-04-03 09:53 UTC -- Issue #36 comment by @ChaosEternal
+
+````
+can also compare to solutions like using github action to run claude
+````
+
+## 2026-04-03 09:55 UTC -- Issue #36 comment by @ChaosEternal
+
+````
+%claude
+
+Updated PR #37 with a comparison table (GitBot vs GitHub Actions + Claude) covering trigger model, token usage, infrastructure, state management, rate/cost control, debugging, and privacy trade-offs — as requested.
+````
+
+## 2026-04-03 10:02 UTC -- PR #37 merged
+
+## 2026-04-03 10:02 UTC -- Issue #36 closed
+
+## 2026-04-03 10:02 UTC -- Issue #36 closed by @ChaosEternal
+
+## 2026-04-03 10:06 UTC -- Issue #38 created by @ChaosEternal: "Update history"
+
+````
+Update the history.md
+````
+
+## 2026-04-03 10:07 UTC -- Issue #38 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown: Update HISTORY.md
+
+The current `HISTORY.md` covers events up to approximately 2026-04-03 00:33 UTC. To bring it up to date:
+
+### Steps
+
+1. **Run the history generator with `--since` and `--append`** to capture events since the last entry:
+   ```bash
+   python3 generate_history.py ChaosEternal/gitbot --since "2026-04-03T00:34:00" -o HISTORY.md --append
+   ```
+   This will fetch all new issues, comments, PR events, and PR comments since the last recorded entry and append them to the existing file.
+
+2. **Review the output** to ensure new events (e.g., PR #37 merge, issue #38 creation) are captured correctly.
+
+3. **Commit and push** the updated `HISTORY.md` via a PR from a feature branch.
+
+### Notes
+- To make this a directly implementable task, consider adding the `task` label and including `@claude implement` in the issue body or a comment.
+- The `generate_history.py` script with `--append` mode handles incremental updates, so a full regeneration is not necessary.
+````
+
+## 2026-04-03 10:19 UTC -- Issue #38 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
