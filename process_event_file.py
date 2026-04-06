@@ -67,8 +67,10 @@ def has_meaningful_data(data):
     issues_count = len(data.get('issues', []))
     issue_comments_count = len(data.get('issue_comments', []))
     pr_comments_count = len(data.get('pull_request_comments', []))
+    issue_events_count = len(data.get('issue_events', []))
 
-    return (issues_count > 0 or issue_comments_count > 0 or pr_comments_count > 0)
+    return (issues_count > 0 or issue_comments_count > 0
+            or pr_comments_count > 0 or issue_events_count > 0)
 
 
 def main():

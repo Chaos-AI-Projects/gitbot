@@ -148,6 +148,31 @@ class GitHubFetcher:
 
         return self._gh_api(endpoint, params)
 
+    def get_issue_events_since(self, repo: str, since: datetime) -> List[Dict[str, Any]]:
+        """
+        Get issue events (e.g., closed) newer than the given timestamp.
+
+        Args:
+            repo: Repository in format 'owner/repo'
+            since: Datetime object (timezone aware)
+
+        Returns:
+            List of issue event dictionaries filtered to 'closed' events
+        """
+        endpoint = f"repos/{repo}/issues/events"
+
+        all_events = self._gh_api(endpoint)
+
+        # Filter to 'closed' events created after `since`
+        since_str = since.isoformat()
+        closed_events = [
+            event for event in all_events
+            if event.get('event') == 'closed'
+            and event.get('created_at', '') >= since_str
+        ]
+
+        return closed_events
+
     def fetch_all_data(self, repo: str, since: datetime) -> Dict[str, Any]:
         """
         Fetch all requested data types.
@@ -164,14 +189,17 @@ class GitHubFetcher:
         issues = self.get_issues_since(repo, since)
         issue_comments = self.get_issue_comments_since(repo, since)
         pr_comments = self.get_pull_request_comments_since(repo, since)
+        issue_events = self.get_issue_events_since(repo, since)
 
         print(f"Found {len(issues)} issues, {len(issue_comments)} issue comments, "
-              f"and {len(pr_comments)} pull request comments.")
+              f"{len(pr_comments)} pull request comments, "
+              f"and {len(issue_events)} issue events.")
 
         return {
             'issues': issues,
             'issue_comments': issue_comments,
             'pull_request_comments': pr_comments,
+            'issue_events': issue_events,
             'fetched_at': datetime.now(timezone.utc).isoformat(),
             'repository': repo,
             'since': since.isoformat()
