@@ -50,14 +50,16 @@ claude --version  # Claude Code — install from https://docs.anthropic.com/en/d
 
 ### Step 2: Prepare a GitHub repo and clone it
 
-Create a new private repository where the agent will operate, or clone an existing one:
+Create a new **private** repository where the agent will operate, or clone an existing one.
+
+> **Important:** The repository should be private. GitBot reacts to any issues and comments it finds, so a public repo will cause the bot to respond to activity from anyone.
 
 ```bash
 # Option A: Create a new private repo
 gh repo create my-project --private --clone
 cd my-project
 
-# Option B: Clone an existing repo
+# Option B: Clone an existing repo (make sure it's private)
 gh repo clone owner/existing-repo
 cd existing-repo
 ```
@@ -72,6 +74,12 @@ touch .jobs/owner_repo-$(date +%Y%m%d-%H%M%S).done
 ```
 
 Replace `owner_repo` with the target repository using an underscore as separator (e.g., `ChaosEternal_gitbot`).
+
+Optionally, add `.jobs` to your `.gitignore` to keep job files out of version control:
+
+```bash
+echo '.jobs/' >> .gitignore
+```
 
 ### Step 4: Run `gitbot-run.sh`
 
