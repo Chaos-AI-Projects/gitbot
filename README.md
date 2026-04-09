@@ -27,6 +27,86 @@ An alternative approach is to run Claude directly inside GitHub Actions, trigger
 
 In short, GitHub Actions is a good fit when you need instant reaction to every event and are already invested in Actions infrastructure. GitBot is better when you want cost-efficient, self-hosted automation that only invokes the LLM when there's meaningful work — which is most repositories most of the time.
 
+## Usage
+
+Get GitBot running in 5 steps.
+
+### Step 1: Install GitBot
+
+Clone the repository and install Python dependencies. You also need the GitHub CLI (`gh`) and Claude CLI (`claude`).
+
+```bash
+git clone https://github.com/ChaosEternal/gitbot.git
+cd gitbot
+pip install -r requirements.txt
+```
+
+Verify the prerequisites are available:
+
+```bash
+gh auth status    # GitHub CLI — install from https://cli.github.com/
+claude --version  # Claude Code — install from https://docs.anthropic.com/en/docs/claude-code
+```
+
+### Step 2: Prepare a GitHub repo and clone it
+
+Create a new **private** repository where the agent will operate, or clone an existing one.
+
+> **Important:** The repository should be private. GitBot reacts to any issues and comments it finds, so a public repo will cause the bot to respond to activity from anyone.
+
+```bash
+# Option A: Create a new private repo
+gh repo create my-project --private --clone
+cd my-project
+
+# Option B: Clone an existing repo (make sure it's private)
+gh repo clone owner/existing-repo
+cd existing-repo
+```
+
+### Step 3: Create a `.jobs` directory and initial `.done` file
+
+Inside the cloned repo, create the `.jobs` directory and a `.done` file. The timestamp in the filename tells GitBot how far back to look for activity — use a time before the earliest issue you want processed.
+
+```bash
+mkdir .jobs
+touch .jobs/owner_repo-$(date +%Y%m%d-%H%M%S).done
+```
+
+Replace `owner_repo` with the target repository using an underscore as separator (e.g., `ChaosEternal_gitbot`).
+
+Optionally, add `.jobs` to your `.gitignore` to keep job files out of version control:
+
+```bash
+echo '.jobs/' >> .gitignore
+```
+
+### Step 4: Run `gitbot-run.sh`
+
+From the top directory of your cloned repo, start the automation loop:
+
+```bash
+/path/to/gitbot/gitbot-run.sh .jobs/
+```
+
+Or with options:
+
+```bash
+/path/to/gitbot/gitbot-run.sh .jobs/ --branch main --interval 600
+```
+
+GitBot will now poll for new GitHub activity and invoke Claude whenever there is work to do.
+
+### Step 5: Create an issue and watch Claude respond
+
+Create an issue in your repository. The bot responds differently depending on what it finds:
+
+- **Normal issues or comments** — the bot will analyze the issue and reply with a structured task breakdown or ask clarifying questions.
+- **Task issues** — if an issue has the `task` label and a comment containing `@claude implement`, the bot will create a feature branch, implement the request, and open a pull request.
+- **PR review comments** — responding to an open PR will cause the bot to address the feedback, push fixes, and reply to each comment.
+
+Wait for the next poll cycle and Claude will pick up the new activity automatically.
+
 ## How It Works
 
 ```
@@ -41,21 +121,9 @@ In short, GitHub Actions is a good fit when you need instant reaction to every e
 2. **`process_event_file.py`** — Processes `.done` trigger files to automate fetching and archiving results.
 3. **`claude_agent.py`** — Feeds the fetched JSON to Claude CLI, which autonomously acts on the activity.
 
-## Installation
+## Reference
 
-```bash
-git clone https://github.com/ChaosEternal/gitbot.git
-cd gitbot
-pip install -r requirements.txt
-```
-
-### Requirements
-
-- Python 3.7+
-- [GitHub CLI (`gh`)](https://cli.github.com/) — authenticated, used for all GitHub API access
-- [Claude CLI (`claude`)](https://docs.anthropic.com/en/docs/claude-code) — for the agent script
-
-## Usage
+Detailed documentation for each script.
 
 ### `github_fetcher.py` — Fetch GitHub Activity
 
@@ -142,73 +210,23 @@ Takes a JSON file produced by `github_fetcher.py` and invokes Claude CLI to auto
 - Content starting with `%claude` is skipped on subsequent runs to avoid re-processing
 - After completion, the JSON file is renamed to `.done` to prevent re-processing
 
-## Automating the Whole Thing
-
-Here's how to set up GitBot to run continuously on a target repository.
-
-### 1. Install and configure `gh` CLI
-
-Install the [GitHub CLI](https://cli.github.com/) and authenticate:
+### `gitbot-run.sh` — Main Automation Loop
 
 ```bash
-gh auth login
+./gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS]
 ```
 
-Make sure your token has these scopes:
-- Read/write issues and comments
-- Read/create/update pull requests
-
-### 2. Install and configure Claude CLI
-
-Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and make sure it's authenticated and working:
-
-```bash
-claude --version
-```
-
-### 3. Clone GitBot and install dependencies
-
-```bash
-git clone https://github.com/ChaosEternal/gitbot.git
-pip install -r gitbot/requirements.txt
-```
-
-### 4. Create a private working repo and clone it
-
-Create a private repo on GitHub where the agent will operate, then clone it:
-
-```bash
-gh repo create my-project --private --clone
-cd my-project
-```
-
-### 5. Create the `.jobs` directory and initial `.done` file
-
-```bash
-mkdir .jobs
-touch .jobs/owner_repo-$(date +%Y%m%d-%H%M%S).done
-```
-
-Replace `owner_repo` with the target repo using underscore as separator (e.g., `torvalds_linux`).
-
-### 6. Run the automation loop
-
-```bash
-/path/to/gitbot/gitbot-run.sh .jobs/
-```
-
-Or with options:
-
-```bash
-/path/to/gitbot/gitbot-run.sh .jobs/ --branch main --interval 600
-```
+Wraps the entire pipeline into a single polling loop.
 
 **Arguments:**
 - `jobs_dir` (optional): Directory containing `.done`/`.json` files (default: `.jobs`)
+
+**Options:**
 - `--branch BRANCH`: Override the default git branch (default: auto-detect from `origin/HEAD`)
 - `--interval SECONDS`: Poll interval in seconds (default: 300)
+- `-h, --help`: Show help message
 
-The script:
+**Behavior:**
 - Runs pre-flight checks (verifies `gh`, `claude`, and the Python scripts are available)
 - Auto-detects the default branch (or uses `--branch`), exports it as `GITBOT_DEFAULT_BRANCH`
 - Polls every N seconds (default: 300)
