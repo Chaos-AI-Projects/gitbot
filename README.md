@@ -48,13 +48,18 @@ gh auth status    # GitHub CLI — install from https://cli.github.com/
 claude --version  # Claude Code — install from https://docs.anthropic.com/en/docs/claude-code
 ```
 
-### Step 2: Prepare a private GitHub repo and clone it
+### Step 2: Prepare a GitHub repo and clone it
 
-Create a private repository where the agent will operate, then clone it locally:
+Create a new private repository where the agent will operate, or clone an existing one:
 
 ```bash
+# Option A: Create a new private repo
 gh repo create my-project --private --clone
 cd my-project
+
+# Option B: Clone an existing repo
+gh repo clone owner/existing-repo
+cd existing-repo
 ```
 
 ### Step 3: Create a `.jobs` directory and initial `.done` file
@@ -86,7 +91,13 @@ GitBot will now poll for new GitHub activity and invoke Claude whenever there is
 
 ### Step 5: Create an issue and watch Claude respond
 
-Create an issue in your repository — for example, a task issue with the `task` label. Add a comment containing `@claude implement` to trigger the agent. Wait for the next poll cycle and Claude will pick it up, create a branch, implement the change, and open a PR.
+Create an issue in your repository. The bot responds differently depending on what it finds:
+
+- **Normal issues or comments** — the bot will analyze the issue and reply with a structured task breakdown or ask clarifying questions.
+- **Task issues** — if an issue has the `task` label and a comment containing `@claude implement`, the bot will create a feature branch, implement the request, and open a pull request.
+- **PR review comments** — responding to an open PR will cause the bot to address the feedback, push fixes, and reply to each comment.
+
+Wait for the next poll cycle and Claude will pick up the new activity automatically.
 
 ## How It Works
 
