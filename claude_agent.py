@@ -137,8 +137,8 @@ def main():
         print(f"Error: File not found: {json_path}", file=sys.stderr)
         sys.exit(1)
 
-    if not json_path.suffix == '.json':
-        print(f"Error: Expected a .json file, got: {json_path.name}", file=sys.stderr)
+    if json_path.suffix not in ('.json', '.done'):
+        print(f"Error: Expected a .json or .done file, got: {json_path.name}", file=sys.stderr)
         sys.exit(1)
 
     # Determine repo directory (default: current working directory)

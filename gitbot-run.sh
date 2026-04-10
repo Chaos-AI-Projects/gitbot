@@ -190,9 +190,20 @@ while $RUNNING; do
             for json_file in "${json_files[@]}"; do
                 $RUNNING || break
                 log "Processing: $json_file"
-                python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)" || {
+                if python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)"; then
+                    # Main agent succeeded — run reviewer pass (best-effort)
+                    done_file="${json_file%.json}.done"
+                    if [[ -f "$done_file" ]]; then
+                        # Ensure we're back on default branch before reviewer
+                        git checkout "$DEFAULT_BRANCH" 2>/dev/null || true
+                        log "Running reviewer on: $done_file"
+                        python3 "$SCRIPT_DIR/claude_agent.py" "$done_file" --reviewer --repo-dir "$(pwd)" || {
+                            log "Warning: reviewer pass failed for $done_file (non-blocking)"
+                        }
+                    fi
+                else
                     log "Warning: claude_agent.py failed for $json_file"
-                }
+                fi
             done
         fi
     fi
