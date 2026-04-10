@@ -54,6 +54,7 @@ If an issue or comment is ambiguous or unclear:
 
 - **Prefix all GitHub content you create** (issue comments, PR descriptions, review replies) with `%claude` on the first line so humans can identify agent-generated content.
 - **Skip any content that starts with `%claude`** — this was created by a previous agent run, do not process it again.
+- **Skip any content that starts with `%claude-reviewer`** — this was created by the reviewer agent. Do not process or act on reviewer feedback unless a human explicitly asks you to.
 - **Git workflow**: Always branch from {default_branch}. Use descriptive branch names. Never commit directly to {default_branch}.
 - **Be conservative**: If unsure, ask for clarification (Rule 5) rather than making assumptions.
 - **One thing at a time**: Process the most important item fully before moving to the next.
