@@ -77,6 +77,7 @@ This script:
 4. Claude reads the JSON, identifies actionable items, and acts according to priority rules:
    - **Task issues** (label "task" + "@claude implement") → implement and create PR
    - **PR review comments** → address feedback and push fixes
+   - **Review requests** ("@claude review") → review `%claude`-prefixed content and comment with `%claude-reviewer` prefix
    - **Other issues** → create task breakdown comment
    - **Ambiguous items** → ask for clarification
 5. All agent-created GitHub content is prefixed with `%claude`
