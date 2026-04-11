@@ -15,26 +15,22 @@ import argparse
 from pathlib import Path
 
 
-def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master',
-                 reviewer: bool = False) -> str:
+def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master') -> str:
     """
     Construct the prompt that instructs Claude to process a GitHub activity JSON file.
 
-    Reads the prompt template from prompt_template.md (or prompt_template_reviewer.md
-    when in reviewer mode) located next to this script and substitutes placeholders
-    with the provided values.
+    Reads the prompt template from prompt_template.md located next to this script
+    and substitutes placeholders with the provided values.
 
     Args:
         json_path: Absolute path to the JSON file from github_fetcher.py
         repo_dir: Absolute path to the repository working directory
         default_branch: The default git branch name
-        reviewer: If True, use the reviewer prompt template
 
     Returns:
         The prompt string to pass to Claude CLI
     """
-    template_name = 'prompt_template_reviewer.md' if reviewer else 'prompt_template.md'
-    template_path = Path(__file__).resolve().parent / template_name
+    template_path = Path(__file__).resolve().parent / 'prompt_template.md'
     template = template_path.read_text()
     return template.format(json_path=json_path, repo_dir=repo_dir,
                            default_branch=default_branch)
@@ -123,12 +119,6 @@ def main():
         default=None,
         help='Repository directory for Claude to work in (default: current working directory)'
     )
-    parser.add_argument(
-        '--reviewer',
-        action='store_true',
-        help='Run in reviewer mode using prompt_template_reviewer.md (does not rename JSON to .done)'
-    )
-
     args = parser.parse_args()
 
     # Resolve paths
@@ -137,8 +127,8 @@ def main():
         print(f"Error: File not found: {json_path}", file=sys.stderr)
         sys.exit(1)
 
-    if json_path.suffix not in ('.json', '.done'):
-        print(f"Error: Expected a .json or .done file, got: {json_path.name}", file=sys.stderr)
+    if json_path.suffix != '.json':
+        print(f"Error: Expected a .json file, got: {json_path.name}", file=sys.stderr)
         sys.exit(1)
 
     # Determine repo directory (default: current working directory)
@@ -177,8 +167,7 @@ def main():
         sys.exit(1)
 
     # Build the prompt
-    prompt = build_prompt(str(json_path), str(repo_dir), default_branch=default_branch,
-                          reviewer=args.reviewer)
+    prompt = build_prompt(str(json_path), str(repo_dir), default_branch=default_branch)
 
     if args.dry_run:
         print("=== DRY RUN — Prompt that would be sent to Claude ===\n")
@@ -201,11 +190,8 @@ def main():
               f"leaving {json_path.name} for retry.", file=sys.stderr)
         sys.exit(exit_code)
 
-    if args.reviewer:
-        print(f"Reviewer mode: leaving {json_path.name} in place (no rename).")
-    else:
-        done_path = rename_json_to_done(str(json_path))
-        print(f"Renamed {json_path.name} → {done_path.name}")
+    done_path = rename_json_to_done(str(json_path))
+    print(f"Renamed {json_path.name} → {done_path.name}")
 
 
 if __name__ == '__main__':
