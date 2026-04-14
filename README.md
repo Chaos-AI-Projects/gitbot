@@ -13,7 +13,7 @@ Many AI-powered automation tools keep an LLM running continuously or trigger it 
 - **Simple state management** — The `.done` file mechanism provides file-based state tracking without requiring a database or webhook infrastructure. Easy to inspect, easy to debug.
 - **Cost-effective for real-world repos** — Most repositories have intermittent activity. GitBot's design means you only pay for tokens when there's genuine work to do.
 
-### Auditable prompts for vibe coding
+### Trackable prompts for vibe coding
 
 As vibe coding scales, reviewing and tracking the prompts humans give to AI agents becomes as important as reviewing the code itself. In a chat interface, prompts and context disappear after each session, making it difficult to review what was asked and why. By routing AI-assisted work through GitHub issues and comments, every human prompt becomes a trackable, reviewable artifact — with timestamps, authorship, and threading built in. This makes GitBot a natural fit for workflows where auditing and iterating on human-to-agent interaction matters.
 
