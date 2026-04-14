@@ -2153,3 +2153,952 @@ The `HISTORY.md` file currently covers events up to **2026-04-03**. It needs to 
 @claude implement
 ````
 
+
+## 2026-04-09 10:46 UTC -- PR #46 created by @ChaosEternal: "Update HISTORY.md with events since 2026-04-03 (fixes #45)"
+
+## 2026-04-09 10:46 UTC -- Issue #45 comment by @ChaosEternal
+
+````
+%claude
+
+Work started — PR #46 updates HISTORY.md with 42 new events since 2026-04-03.
+
+https://github.com/ChaosEternal/gitbot/pull/46
+````
+
+## 2026-04-09 10:52 UTC -- PR #46 merged
+
+## 2026-04-09 10:52 UTC -- Issue #45 closed
+
+## 2026-04-09 10:52 UTC -- Issue #45 closed by @ChaosEternal
+
+## 2026-04-09 11:06 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+The reviewer should only leave comments
+The reviewer should use gh pr review --comment
+The reviewer should also check PRs created by human
+````
+
+## 2026-04-09 11:08 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+%claude
+
+## Updated Plan: Reviewer Harness Step (#42)
+
+Thanks for the clarifications. Incorporating the feedback into the implementation plan:
+
+### Resolved Design Decisions
+
+- **Review style**: Comments only (no blocking/request-changes)
+- **Review mechanism**: `gh pr review --comment` for PRs
+- **Scope**: Review both agent-created and human-created PRs
+
+### Refined Implementation Steps
+
+**1. Create `prompt_template_reviewer.md`**
+- Instruct the reviewer to prefix all output with `%claude-reviewer`
+- Reviewer should skip content prefixed with `%claude` or `%claude-reviewer` (prevent loops)
+- Review angles: correctness, scope creep, security, breaking changes, plan quality, convention compliance, test coverage
+- For PRs: use `gh pr review <number> --comment --body "..."` (comments only, never request-changes)
+- For issue comments/plans: post issue comments with `%claude-reviewer` prefix
+- Review ALL open PRs (both human and agent-created), not just agent PRs
+
+**2. Add reviewer invocation to `claude_agent.py`**
+- Option A (recommended): Add a `--reviewer` flag that swaps `prompt_template.md` for `prompt_template_reviewer.md`
+- The reviewer pass receives the same JSON file as context, plus queries open PRs via `gh pr list`
+- No need for artifact tracking from the first run — the reviewer independently discovers open PRs and recent issue comments
+
+**3. Update `gitbot-run.sh`**
+- After the main `claude_agent.py` run, invoke a second pass: `python3 claude_agent.py <json_file> --reviewer`
+- Always run the reviewer pass (it reviews all open PRs, including human ones, regardless of whether the first pass created anything)
+
+**4. Prefix conventions**
+- `prompt_template.md`: skip `%claude` and `%claude-reviewer` content
+- `prompt_template_reviewer.md`: skip `%claude` and `%claude-reviewer` content
+- This prevents infinite feedback loops between agent and reviewer
+````
+
+## 2026-04-09 12:42 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+I want the reviewer to review comments, plans, PRs made by %claude. how to avoid the loop?
+
+what about this:
+%claude-reviewer react to %claude but %claude will not react to %claude-reviewer until human say so?
+````
+
+## 2026-04-09 12:46 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+%claude
+
+## Loop Avoidance Strategy for Reviewer Harness
+
+Good approach — the one-directional reaction rule is the cleanest way to prevent infinite loops. Here's how it would work:
+
+### Prefix-Based Routing Rules
+
+| Content prefix | `%claude` agent reacts? | `%claude-reviewer` agent reacts? |
+|---|---|---|
+| `%claude` | **No** (skip own content) | **Yes** (this is what it reviews) |
+| `%claude-reviewer` | **No** (ignore unless human escalates) | **No** (skip own content) |
+| No prefix (human) | **Yes** (normal processing) | **No** (only reviews `%claude` output) |
+
+### Implementation
+
+1. **`prompt_template.md`** (main agent) — add to processing rules:
+   - Skip content prefixed with `%claude` (already exists)
+   - Skip content prefixed with `%claude-reviewer` (new: agent ignores reviewer feedback)
+
+2. **`prompt_template_reviewer.md`** (reviewer agent) — processing rules:
+   - **Only** review content prefixed with `%claude` (this is its job)
+   - Skip content prefixed with `%claude-reviewer` (ignore own prior output)
+   - Skip unprefixed content (human content is not its concern)
+
+3. **Human escalation**: If a human wants the main agent to act on reviewer feedback, they post an unprefixed comment like "Please address the points raised by the reviewer above" — the main agent sees this as human content and processes it normally.
+
+### Why This Works
+
+- `%claude` → `%claude-reviewer` → **stops** (reviewer output is ignored by both agents)
+- Only a human comment can restart the cycle, giving humans full control over when feedback is acted upon
+- No counters, timers, or state tracking needed — just prefix matching
+````
+
+## 2026-04-09 12:52 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown: Reviewer Harness Step (#42)
+
+After analyzing the codebase (`claude_agent.py`, `prompt_template.md`, `gitbot-run.sh`), here is a structured implementation plan:
+
+---
+
+### Task 1: Create `prompt_template_reviewer.md`
+
+A new prompt template for the reviewer agent. Key differences from `prompt_template.md`:
+
+- Prefix all output with `%claude-reviewer` instead of `%claude`
+- **Only** process content prefixed with `%claude` (ignore everything else)
+- Skip content prefixed with `%claude-reviewer` (own prior output)
+- Review scope: evaluate `%claude`-generated PR descriptions, task breakdowns, and issue comments
+
+**Suggested review angles:**
+1. **Correctness** — Does the plan/PR actually address the issue? Are there logical gaps?
+2. **Scope creep** — Does the implementation stay within what was requested, or does it over-engineer?
+3. **Risk assessment** — Could the proposed changes break existing functionality? Are there edge cases?
+4. **Completeness** — Are there missing steps, untested paths, or overlooked requirements?
+5. **Code quality** (for PRs) — Style consistency, naming, separation of concerns
+6. **Security** — Any introduced vulnerabilities (injection, exposed secrets, etc.)?
+
+### Task 2: Update `claude_agent.py` to support reviewer mode
+
+Add a `--reviewer` flag (or similar) that:
+- Uses `prompt_template_reviewer.md` instead of `prompt_template.md`
+- Passes the same JSON file to the reviewer agent
+- Does **not** rename the JSON to `.done` (the first run already handles lifecycle)
+
+### Task 3: Update `gitbot-run.sh` to run the reviewer after the main agent
+
+In the main loop, after each `claude_agent.py` invocation succeeds:
+1. Run `claude_agent.py` again in reviewer mode on the same JSON (or on the `.done` file)
+2. The reviewer pass is optional/best-effort — a failure should not block the pipeline
+
+### Task 4: Update `prompt_template.md` (main agent)
+
+Add a rule to skip content prefixed with `%claude-reviewer`, so the main agent ignores reviewer feedback unless a human explicitly asks it to act on it.
+
+### Task 5: Loop avoidance verification
+
+Ensure the prefix-based routing prevents infinite loops:
+- `%claude` content → only reviewer reacts → produces `%claude-reviewer` → **nobody reacts** → stops
+- Only unprefixed (human) content restarts the cycle
+
+---
+
+### Dependency order
+`Task 1` and `Task 4` can be done in parallel. `Task 2` depends on Task 1. `Task 3` depends on Task 2. `Task 5` is a final validation step.
+````
+
+## 2026-04-09 21:34 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+create separate task issues for the plan
+````
+
+## 2026-04-09 21:39 UTC -- Issue #47 created by @ChaosEternal: "Create prompt_template_reviewer.md" [task]
+
+````
+%claude
+
+**Parent issue:** #42
+
+Create a new prompt template for the reviewer agent (`prompt_template_reviewer.md`). Key requirements:
+
+- Prefix all output with `%claude-reviewer` instead of `%claude`
+- **Only** process content prefixed with `%claude` (ignore everything else)
+- Skip content prefixed with `%claude-reviewer` (own prior output)
+- Review scope: evaluate `%claude`-generated PR descriptions, task breakdowns, and issue comments
+
+**Suggested review angles:**
+1. **Correctness** — Does the plan/PR actually address the issue? Are there logical gaps?
+2. **Scope creep** — Does the implementation stay within what was requested, or does it over-engineer?
+3. **Risk assessment** — Could the proposed changes break existing functionality? Are there edge cases?
+4. **Completeness** — Are there missing steps, untested paths, or overlooked requirements?
+5. **Code quality** (for PRs) — Style consistency, naming, separation of concerns
+6. **Security** — Any introduced vulnerabilities (injection, exposed secrets, etc.)?
+
+**Dependency:** None — can be started immediately.
+````
+
+## 2026-04-09 21:39 UTC -- Issue #48 created by @ChaosEternal: "Update claude_agent.py to support reviewer mode" [task]
+
+````
+%claude
+
+**Parent issue:** #42
+
+Add a `--reviewer` flag to `claude_agent.py` that:
+
+- Uses `prompt_template_reviewer.md` instead of `prompt_template.md`
+- Passes the same JSON file to the reviewer agent
+- Does **not** rename the JSON to `.done` (the first run already handles lifecycle)
+
+**Dependency:** Depends on the creation of `prompt_template_reviewer.md` (see parent issue #42 task breakdown).
+````
+
+## 2026-04-09 21:39 UTC -- Issue #47 labeled "task" by @ChaosEternal
+
+## 2026-04-09 21:39 UTC -- Issue #49 created by @ChaosEternal: "Update gitbot-run.sh to run reviewer after main agent" [task]
+
+````
+%claude
+
+**Parent issue:** #42
+
+Update `gitbot-run.sh` to chain the reviewer after the main agent run:
+
+1. After each `claude_agent.py` invocation succeeds, run it again in reviewer mode on the same JSON
+2. The reviewer pass is optional/best-effort — a failure should not block the pipeline
+
+**Dependency:** Depends on `claude_agent.py` reviewer mode support (see parent issue #42 task breakdown).
+````
+
+## 2026-04-09 21:39 UTC -- Issue #48 labeled "task" by @ChaosEternal
+
+## 2026-04-09 21:39 UTC -- Issue #49 labeled "task" by @ChaosEternal
+
+## 2026-04-09 21:39 UTC -- Issue #50 created by @ChaosEternal: "Update prompt_template.md to skip %claude-reviewer content" [task]
+
+````
+%claude
+
+**Parent issue:** #42
+
+Add a rule to `prompt_template.md` (the main agent template) to skip content prefixed with `%claude-reviewer`, so the main agent ignores reviewer feedback unless a human explicitly asks it to act on it.
+
+**Dependency:** None — can be started immediately (parallel with prompt_template_reviewer.md creation).
+````
+
+## 2026-04-09 21:39 UTC -- Issue #51 created by @ChaosEternal: "Verify loop avoidance between agent and reviewer" [task]
+
+````
+%claude
+
+**Parent issue:** #42
+
+Final validation step to ensure the prefix-based routing prevents infinite loops:
+
+- `%claude` content → only reviewer reacts → produces `%claude-reviewer` → **nobody reacts** → stops
+- Only unprefixed (human) content restarts the cycle
+- Test with a simulated run to confirm no ping-pong behavior
+
+**Dependency:** Depends on all other tasks from #42 being complete.
+````
+
+## 2026-04-09 21:39 UTC -- Issue #50 labeled "task" by @ChaosEternal
+
+## 2026-04-09 21:39 UTC -- Issue #51 labeled "task" by @ChaosEternal
+
+## 2026-04-09 21:39 UTC -- Issue #42 comment by @ChaosEternal
+
+````
+%claude
+
+Created separate task issues for the reviewer harness plan:
+
+1. #47 — Create `prompt_template_reviewer.md`
+2. #48 — Update `claude_agent.py` to support reviewer mode
+3. #49 — Update `gitbot-run.sh` to run reviewer after main agent
+4. #50 — Update `prompt_template.md` to skip `%claude-reviewer` content
+5. #51 — Verify loop avoidance between agent and reviewer
+
+**Dependency order:** #47 and #50 can be done in parallel → #48 depends on #47 → #49 depends on #48 → #51 is final validation.
+````
+
+## 2026-04-09 21:43 UTC -- Issue #47 comment by @ChaosEternal
+
+````
+@claude implement this
+````
+
+## 2026-04-09 21:46 UTC -- PR #52 created by @ChaosEternal: "Create prompt_template_reviewer.md (fixes #47)"
+
+## 2026-04-09 21:46 UTC -- Issue #47 comment by @ChaosEternal
+
+````
+%claude
+
+Implementation started — see PR #52.
+
+Created `prompt_template_reviewer.md` with the following design:
+- Prefixes all output with `%claude-reviewer`
+- Only processes `%claude`-prefixed content (main agent output)
+- Skips `%claude-reviewer`-prefixed content (own prior output)
+- Reviews from 6 angles: correctness, scope creep, risk, completeness, code quality, security
+- Read-only role — no code changes, no branches, no PRs
+````
+
+## 2026-04-09 21:49 UTC -- PR #52 merged
+
+## 2026-04-09 21:49 UTC -- Issue #47 closed
+
+## 2026-04-09 21:49 UTC -- Issue #47 closed by @ChaosEternal
+
+## 2026-04-09 21:50 UTC -- Issue #48 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-09 21:53 UTC -- PR #53 created by @ChaosEternal: "Add --reviewer flag to claude_agent.py (fixes #48)"
+
+## 2026-04-09 21:53 UTC -- Issue #48 comment by @ChaosEternal
+
+````
+%claude
+
+Implementation started — see PR #53.
+
+Changes to `claude_agent.py`:
+- Added `--reviewer` flag to argparse
+- `build_prompt()` selects `prompt_template_reviewer.md` when `--reviewer` is passed
+- Skips the JSON→`.done` rename in reviewer mode
+````
+
+## 2026-04-10 04:57 UTC -- PR #53 merged
+
+## 2026-04-10 04:57 UTC -- Issue #48 closed
+
+## 2026-04-10 04:57 UTC -- Issue #48 closed by @ChaosEternal
+
+## 2026-04-10 04:57 UTC -- Issue #49 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-10 05:01 UTC -- PR #54 created by @ChaosEternal: "Chain reviewer after main agent in gitbot-run.sh (fixes #49)"
+
+## 2026-04-10 05:01 UTC -- Issue #49 comment by @ChaosEternal
+
+````
+%claude
+
+Work started on this issue. See PR #54 for the implementation.
+
+Changes:
+- `gitbot-run.sh`: After each successful main agent run, chains a reviewer pass (`--reviewer`) on the `.done` file. Failures are logged but non-blocking.
+- `claude_agent.py`: Accepts `.done` files (in addition to `.json`) so the reviewer can process already-renamed files.
+````
+
+## 2026-04-10 05:17 UTC -- PR #54 merged
+
+## 2026-04-10 05:17 UTC -- Issue #49 closed
+
+## 2026-04-10 05:17 UTC -- Issue #49 closed by @ChaosEternal
+
+## 2026-04-10 05:18 UTC -- Issue #50 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-10 05:23 UTC -- PR #55 created by @ChaosEternal: "Add rule to skip %claude-reviewer content in prompt template"
+
+## 2026-04-10 05:23 UTC -- Issue #50 comment by @ChaosEternal
+
+````
+%claude
+
+Work started on this issue. PR created: https://github.com/ChaosEternal/gitbot/pull/55
+
+Added a rule to `prompt_template.md` instructing the main agent to skip any content prefixed with `%claude-reviewer`, so reviewer feedback is ignored unless a human explicitly requests action on it.
+````
+
+## 2026-04-10 05:25 UTC -- PR #55 merged
+
+## 2026-04-10 05:25 UTC -- Issue #50 closed
+
+## 2026-04-10 05:25 UTC -- Issue #50 closed by @ChaosEternal
+
+## 2026-04-10 05:25 UTC -- Issue #51 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-10 05:30 UTC -- PR #56 created by @ChaosEternal: "Add loop avoidance verification tests (fixes #51)"
+
+## 2026-04-10 05:30 UTC -- Issue #51 comment by @ChaosEternal
+
+````
+%claude
+
+Work started on this issue. PR created: https://github.com/ChaosEternal/gitbot/pull/56
+
+Added `test_loop_avoidance.py` with 24 tests verifying the prefix-based routing prevents infinite loops:
+- Human content → main agent (`%claude`) → reviewer (`%claude-reviewer`) → **stops** (2 steps max)
+- `%claude-reviewer` content → **nobody processes** → stops immediately
+- Both prompt templates contain the correct skip/process rules
+````
+
+## 2026-04-10 05:52 UTC -- PR #56 merged
+
+## 2026-04-10 05:53 UTC -- Issue #51 closed
+
+## 2026-04-10 05:53 UTC -- Issue #51 closed by @ChaosEternal
+
+## 2026-04-10 05:56 UTC -- Issue #57 created by @ChaosEternal: "a flag of gitbot-run.sh to turn off review"
+
+````
+I want add a flag o gitbot-run.sh to turn off review
+````
+
+## 2026-04-10 05:57 UTC -- Issue #57 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown for #57: Add `--no-review` flag to `gitbot-run.sh`
+
+### Context
+Currently, `gitbot-run.sh` always runs a reviewer pass (lines 194–203) after each main agent completes. This issue requests a flag to skip that reviewer step.
+
+### Tasks
+
+- [ ] **1. Add `--no-review` flag to argument parsing** (lines 35–59)
+  - Add a new variable `RUN_REVIEW=true` (default: enabled, preserving current behavior)
+  - Add a `--no-review)` case in the `while` loop that sets `RUN_REVIEW=false`
+  - Update the `usage()` function to document the new flag
+
+- [ ] **2. Guard the reviewer pass with the flag** (lines 194–203)
+  - Wrap the reviewer block (`done_file=...` through the closing `fi`) in an `if [[ "$RUN_REVIEW" == true ]]; then ... fi` check
+
+- [ ] **3. Log the review setting at startup** (around line 162)
+  - Add a log line showing whether review is enabled or disabled, e.g.:
+    `log "  Review pass:    ${RUN_REVIEW}"`
+
+- [ ] **4. Update CLAUDE.md** 
+  - Add `--no-review` to the `gitbot-run.sh` usage section and description
+
+### Notes
+- No changes needed to `claude_agent.py` — the `--reviewer` flag there is independent.
+- Default behavior (review enabled) is preserved when the flag is omitted, so this is fully backward-compatible.
+````
+
+## 2026-04-10 06:01 UTC -- Issue #58 created by @ChaosEternal: "the review is not triggered" [task]
+
+````
+please investigate this
+````
+
+## 2026-04-10 06:05 UTC -- Issue #58 comment by @ChaosEternal
+
+````
+%claude
+
+## Investigation: Why the Reviewer Is Not Triggered (#58)
+
+### Root Cause Analysis
+
+After tracing the code path in `gitbot-run.sh` (lines 193–203) and `claude_agent.py` (lines 165–177), the most likely root cause is a **branch state conflict** after the main agent runs.
+
+#### The Flow
+
+1. Main agent (`claude -p`) processes a `.json` file
+2. If the main agent implements a task (Rule 1), it **creates and checks out a feature branch** (e.g., `feature/issue-N-...`), commits, and pushes
+3. After the agent subprocess exits, the repo is **still on the feature branch**
+4. `claude_agent.py` renames `.json` → `.done` and returns success
+5. `gitbot-run.sh:198` runs `git checkout "$DEFAULT_BRANCH" 2>/dev/null || true`
+6. `gitbot-run.sh:200` invokes `claude_agent.py "$done_file" --reviewer`
+
+#### The Problem
+
+At step 5, `git checkout` can **fail silently** (the `|| true` swallows the error). This happens when:
+- The feature branch has uncommitted or staged changes that would be overwritten
+- Any other condition preventing branch switch
+
+At step 6, `claude_agent.py` performs a **branch check** (`claude_agent.py:172`) — if the current branch is not the default branch, it exits with an error:
+```
+Error: Must be on master branch, currently on 'feature/issue-N-...'
+```
+
+This error is caught by the `|| { log "Warning: ..." }` on line 201, so it appears only as a non-blocking warning in the log and is easy to miss.
+
+#### Secondary Issue
+
+Even when the reviewer runs successfully, it reads the **same JSON file** that was fetched *before* the main agent acted. Any `%claude`-prefixed content created by the main agent during *this* run won't be in the JSON — it will only appear in the *next* fetch cycle. This means the reviewer can only review `%claude` content from previous agent runs, not the current one.
+
+### Tasks to Fix
+
+- [ ] **1. Ensure the main agent returns to the default branch before exiting**
+  - Option A: Add instructions in `prompt_template.md` telling the agent to `git checkout {default_branch}` as its final step after creating a PR
+  - Option B: Add `git checkout "$DEFAULT_BRANCH" --force` in `gitbot-run.sh` after the main agent (but before the rename check), with proper error handling instead of `|| true`
+
+- [ ] **2. Make the branch checkout failure non-silent**
+  - Replace `git checkout "$DEFAULT_BRANCH" 2>/dev/null || true` with proper error handling that logs a clear warning when checkout fails, and skips the reviewer with an explanation
+
+- [ ] **3. Remove the branch check in reviewer mode** (alternative fix)
+  - The reviewer agent is read-only (it only posts comments, never modifies code). The branch check in `claude_agent.py` is unnecessarily strict for `--reviewer` mode. Skipping it would let the reviewer run regardless of the current branch state.
+
+- [ ] **4. Consider re-fetching for the reviewer** (enhancement)
+  - To let the reviewer review content from the *current* agent run, the reviewer would need fresh data. This could be a separate follow-up issue.
+
+### Recommended Approach
+
+Task **3** (skip branch check for reviewer mode) is the simplest and most robust fix — it eliminates the root cause without adding complexity to the main agent's prompt or git operations.
+````
+
+## 2026-04-10 07:29 UTC -- Issue #58 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-10 07:29 UTC -- Issue #58 labeled "task" by @ChaosEternal
+
+## 2026-04-10 07:37 UTC -- PR #59 created by @ChaosEternal: "Re-fetch data before reviewer pass so it sees agent output (fixes #58)"
+
+## 2026-04-10 07:37 UTC -- Issue #58 comment by @ChaosEternal
+
+````
+%claude
+
+## Investigation
+
+The reviewer was not finding anything to review because it was reading stale data.
+
+**Root cause**: `gitbot-run.sh` passed the `.done` file (the original JSON renamed after the main agent finished) to the reviewer. This JSON was fetched *before* the main agent ran, so it did not contain any `%claude`-prefixed content. The reviewer read it, found nothing to review, and exited.
+
+**Fix**: After the main agent succeeds, `gitbot-run.sh` now re-fetches GitHub data (using the same repo and `since` timestamp from the `.done` file) so the reviewer receives fresh data that includes the agent's output.
+
+PR: https://github.com/ChaosEternal/gitbot/pull/59
+````
+
+## 2026-04-11 13:09 UTC -- Issue #60 created by @ChaosEternal: "rework of review" [task]
+
+````
+remove the second run of claude which does review. 
+make the review prompt a skill(or a rule) in the main prompt and will be used when 
+"@claude review" is seen in main prompt
+````
+
+## 2026-04-11 13:11 UTC -- Issue #60 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown for Issue #60: Rework of Review
+
+### Current Architecture
+- `gitbot-run.sh` runs the main agent (`claude_agent.py`) then a **separate reviewer pass** (`claude_agent.py --reviewer`) using `prompt_template_reviewer.md`
+- The reviewer is a second Claude invocation that only reviews `%claude`-prefixed content
+- `claude_agent.py` has a `--reviewer` flag that selects the reviewer template and skips renaming the JSON to `.done`
+
+### Proposed Changes
+
+#### Task 1: Add a review rule to `prompt_template.md`
+Add a new processing rule (e.g., between current Rules 2 and 3) that triggers when an issue body or comment contains `@claude review`. When triggered, the agent should review `%claude`-prefixed content on the referenced PR or issue using the review criteria currently in `prompt_template_reviewer.md` (correctness, scope creep, risk, completeness, code quality, security). Review output should still use the `%claude-reviewer` prefix.
+
+#### Task 2: Remove the reviewer pass from `gitbot-run.sh`
+Remove the block at lines 194-203 that runs the reviewer as a second Claude invocation after the main agent completes. This eliminates the separate reviewer subprocess entirely.
+
+#### Task 3: Remove the `--reviewer` flag from `claude_agent.py`
+- Remove the `--reviewer` argument from the argparse section
+- Remove the `reviewer` parameter from `build_prompt()`
+- Remove the conditional logic that skips `.done` renaming in reviewer mode
+- Simplify `build_prompt()` to always use `prompt_template.md`
+
+#### Task 4: Remove `prompt_template_reviewer.md`
+Delete the standalone reviewer template file since its review criteria will now live inside `prompt_template.md` as a rule/skill.
+
+#### Task 5: Update `CLAUDE.md`
+Update the documentation to reflect the new architecture — remove references to the reviewer mode, `--reviewer` flag, and `prompt_template_reviewer.md`.
+
+### Notes
+- The `%claude-reviewer` prefix convention should be preserved so humans can still distinguish review comments from action comments.
+- The `prompt_template.md` rule for `@claude review` should reuse the same review angles (correctness, scope creep, risk, completeness, code quality, security) from the current reviewer template.
+- Related: issue #57 (flag to turn off review) and issue #58 / PR #59 (reviewer trigger fix) may become obsolete after this rework.
+````
+
+## 2026-04-11 13:22 UTC -- Issue #60 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-11 14:01 UTC -- Issue #60 labeled "task" by @ChaosEternal
+
+## 2026-04-11 14:02 UTC -- Issue #60 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-11 14:06 UTC -- PR #61 created by @ChaosEternal: "Integrate review into main prompt, remove separate reviewer pass (fixes #60)"
+
+## 2026-04-11 14:06 UTC -- Issue #60 comment by @ChaosEternal
+
+````
+%claude
+
+Implementation started in PR #61.
+
+Changes made:
+- Added **Rule 3: Review on request** to `prompt_template.md` — triggers when `@claude review` appears in an issue/comment, using all review angles from the old reviewer template
+- Removed the separate reviewer pass from `gitbot-run.sh`
+- Removed `--reviewer` flag from `claude_agent.py`
+- Deleted `prompt_template_reviewer.md`
+- Updated `CLAUDE.md` documentation
+````
+
+## 2026-04-11 23:40 UTC -- PR #61 merged
+
+## 2026-04-11 23:40 UTC -- Issue #60 closed
+
+## 2026-04-11 23:40 UTC -- Issue #60 closed by @ChaosEternal
+
+## 2026-04-12 01:02 UTC -- PR #59 closed
+
+## 2026-04-12 01:02 UTC -- Issue #58 closed
+
+## 2026-04-12 01:02 UTC -- Issue #58 closed by @ChaosEternal
+
+## 2026-04-12 01:02 UTC -- Issue #57 closed
+
+## 2026-04-12 01:02 UTC -- Issue #57 closed by @ChaosEternal
+
+## 2026-04-12 01:03 UTC -- Issue #42 closed
+
+## 2026-04-12 01:03 UTC -- Issue #42 closed by @ChaosEternal
+
+## 2026-04-12 21:42 UTC -- Issue #62 created by @ChaosEternal: "more on readme " [task]
+
+````
+In the why section of the readme, I want to add a paragraph about transform from chat interface to issue/comment interface is essential for vibe coding because reviewing and tracking the prompts from human are getting more important.
+````
+
+## 2026-04-12 21:44 UTC -- Issue #62 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown for #62: Add paragraph to README "Why" section
+
+The request is to add a paragraph to the **Why GitBot?** section of `README.md` about how transforming from a chat interface to an issue/comment interface is essential for vibe coding, because reviewing and tracking human prompts is becoming increasingly important.
+
+### Proposed location
+
+Insert a new paragraph after the current introductory paragraph (line 7) and before the bullet list (line 9), or as a new bullet point in the existing list.
+
+### Suggested content outline
+
+The paragraph should cover:
+1. **Chat interfaces are ephemeral** — prompts and context vanish after a session, making it hard to review what was asked and why
+2. **Issue/comment interfaces create a persistent, reviewable record** — every prompt from a human becomes a trackable artifact (issue body, comment) with timestamps, authorship, and threading
+3. **This matters for vibe coding** — as AI-assisted development scales, the ability to audit, iterate on, and learn from the prompts humans give to AI agents becomes critical
+4. **GitBot enables this shift** — by routing work through GitHub issues and comments, all human-to-agent interaction is captured in the project's existing collaboration infrastructure
+
+### Implementation steps
+
+- [ ] Draft the paragraph (2–4 sentences)
+- [ ] Insert it into the "Why GitBot?" section of `README.md` — likely as a new paragraph before the bullet list, or as an additional bullet point
+- [ ] Ensure it flows naturally with the existing text about poll-based architecture and cost efficiency
+- [ ] Review for tone consistency with the rest of the README
+
+To proceed with implementation, add the `task` label and comment `@claude implement`.
+````
+
+## 2026-04-12 23:09 UTC -- Issue #62 comment by @ChaosEternal
+
+````
+@claude review this.
+````
+
+## 2026-04-12 23:14 UTC -- Issue #62 comment by @ChaosEternal
+
+````
+%claude
+
+## Review of Task Breakdown for #62
+
+The existing task breakdown is solid. A few notes:
+
+### Placement
+The suggested location — a new paragraph after the intro (line 7) and before the bullet list (line 9) — is the right spot. It should be a standalone paragraph, not a bullet point, since it introduces a broader motivation that complements but is distinct from the cost-efficiency angle of the existing bullets.
+
+### Content
+The four-point outline captures the idea well, but the final paragraph should be concise (2–3 sentences max) to match the README's tone. Suggested framing:
+
+> In a chat interface, prompts and context disappear after each session, making it difficult to review what was asked and why. By routing AI-assisted work through GitHub issues and comments, every human prompt becomes a trackable, reviewable artifact — with timestamps, authorship, and threading built in. This makes GitBot a natural fit for vibe coding workflows where auditing and iterating on human-to-agent interaction matters.
+
+### Minor suggestions
+- Keep it focused on the **why** (reviewability of prompts), not the **how** (GitBot's architecture) — the bullets already cover the how.
+- Avoid introducing new terminology that needs explanation; "vibe coding" is fine since the owner used it in the issue.
+
+Overall the breakdown is ready for implementation. Adding the `task` label and commenting `@claude implement` will kick it off.
+````
+
+## 2026-04-13 00:47 UTC -- Issue #62 labeled "task" by @ChaosEternal
+
+## 2026-04-13 00:47 UTC -- Issue #62 comment by @ChaosEternal
+
+````
+keep the review in count, please @claude implement it. 
+
+````
+
+## 2026-04-13 00:50 UTC -- PR #63 created by @ChaosEternal: "Add vibe coding rationale to README (fixes #62)"
+
+## 2026-04-13 00:50 UTC -- Issue #62 comment by @ChaosEternal
+
+````
+%claude
+
+Implementation PR created: https://github.com/ChaosEternal/gitbot/pull/63
+
+Added a paragraph to the "Why GitBot?" section that covers:
+- Why reviewing and tracking human prompts matters as vibe coding scales
+- How chat interfaces lose prompts and context after each session
+- How routing work through GitHub issues/comments makes every prompt a reviewable artifact with timestamps, authorship, and threading
+
+The review feedback from the earlier breakdown was incorporated into the final text.
+````
+
+## 2026-04-13 00:59 UTC -- PR #63 merged
+
+## 2026-04-13 00:59 UTC -- Issue #62 closed
+
+## 2026-04-13 00:59 UTC -- Issue #62 closed by @ChaosEternal
+
+## 2026-04-13 05:42 UTC -- Issue #64 created by @ChaosEternal: "push to remote" [task]
+
+````
+There is a git remote  pointing to "git@github.com:Chaos-AI-Projects/gitbot.git"
+please push current master to that remote.
+````
+
+## 2026-04-13 05:47 UTC -- Issue #64 comment by @ChaosEternal
+
+````
+%claude
+
+### Task Breakdown for #64: Push to Remote
+
+The `public` remote already exists and points to `git@github.com:Chaos-AI-Projects/gitbot.git`.
+
+**Steps to complete:**
+1. `git push public master` — push the current master branch to the `public` remote
+
+**Current state:**
+- `master` is at commit `426bbd9` (Merge pull request #63)
+- The `public` remote is configured and reachable
+
+This is a one-step operation. To have me execute it, please add the `task` label and comment `@claude implement`.
+````
+
+## 2026-04-13 05:52 UTC -- Issue #64 labeled "task" by @ChaosEternal
+
+## 2026-04-13 05:52 UTC -- Issue #64 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-13 05:53 UTC -- Issue #64 comment by @ChaosEternal
+
+````
+%claude
+
+Done. Pushed master (`426bbd9`) to the `public` remote (`git@github.com:Chaos-AI-Projects/gitbot.git`).
+
+```
+b6ad1e0..426bbd9  master -> master
+```
+````
+
+## 2026-04-13 05:53 UTC -- Issue #64 closed
+
+## 2026-04-13 05:53 UTC -- Issue #64 closed by @ChaosEternal
+
+## 2026-04-14 00:06 UTC -- Issue #65 created by @ChaosEternal: "the "why" section in readme" [task]
+
+````
+The "why" section in readme needs improvements. Please improve the section to make it more logically organized.
+````
+
+## 2026-04-14 00:08 UTC -- Issue #65 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown: Reorganize the "Why" section in README
+
+### Problem
+The current "Why GitBot?" section mixes two distinct arguments in a way that breaks logical flow:
+1. The **efficiency argument** (poll-based, event-driven, cost-effective) is introduced in the opening sentence, then interrupted by...
+2. The **auditability/vibe-coding argument** (prompts as reviewable artifacts via GitHub issues), which appears as a standalone paragraph wedged between the intro and the bullet points that support the efficiency argument.
+
+This makes the section feel disjointed — the reader starts on "efficiency," jumps to "auditability," then jumps back to efficiency bullet points.
+
+### Proposed Reorganization
+
+**Option A — Two clear subsections:**
+1. **Opening sentence** — brief overview of what GitBot does differently (1-2 sentences)
+2. **Auditability / prompt traceability** — the vibe-coding rationale (prompts become trackable GitHub artifacts)
+3. **Efficiency / cost** — poll-based architecture, event-driven invocation, simple state management (the existing bullet points)
+4. **Comparison table** — stays at the end as-is
+
+**Option B — Interleaved but with clear topic sentences:**
+1. **Opening paragraph** — introduce both themes: efficiency *and* auditability
+2. **Bullet points** — reorganize to alternate or group by theme, with clear labels
+3. **Comparison table** — stays at the end
+
+### Recommended Approach
+Option A is cleaner. The two arguments are independent motivations and read better as separate blocks. Suggested structure:
+
+```
+## Why GitBot?
+
+[1-2 sentence overview of both motivations]
+
+### Prompt auditability
+[Vibe coding paragraph — prompts as reviewable artifacts]
+
+### Efficient by design
+[Poll-based architecture bullet points]
+
+### Comparison with GitHub Actions + Claude
+[Existing table]
+```
+
+### Steps to implement
+1. Write a concise overview sentence covering both motivations
+2. Move the vibe-coding/auditability paragraph under its own subheading
+3. Keep the efficiency bullet points under a separate subheading
+4. Leave the comparison table as-is
+5. Review for smooth transitions between sections
+
+To proceed with implementation, add the `task` label and comment `@claude implement`.
+````
+
+## 2026-04-14 00:51 UTC -- Issue #65 comment by @ChaosEternal
+
+````
+choose option A
+````
+
+## 2026-04-14 00:53 UTC -- Issue #65 comment by @ChaosEternal
+
+````
+%claude
+
+Acknowledged — will use **Option A** (two clear subsections: prompt auditability + efficient by design) when implementing the "Why" section reorganization.
+
+To proceed with implementation, please add the `task` label to this issue and comment `@claude implement`.
+````
+
+## 2026-04-14 01:18 UTC -- Issue #65 labeled "task" by @ChaosEternal
+
+## 2026-04-14 01:18 UTC -- Issue #65 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
+## 2026-04-14 01:22 UTC -- PR #66 created by @ChaosEternal: "Reorganize README Why section with clear subheadings (fixes #65)"
+
+## 2026-04-14 01:22 UTC -- Issue #65 comment by @ChaosEternal
+
+````
+%claude
+
+Work started — see PR #66.
+
+Changes: reorganized the "Why GitBot?" section by adding two subheadings ("Cost-efficient automation" and "Auditable prompts for vibe coding") so the cost-efficiency intro flows directly into its bullet points, and the vibe coding rationale stands as its own clearly labeled subsection. No content was added or removed.
+````
+
+## 2026-04-14 01:31 UTC -- PR #66 review comment by @ChaosEternal
+
+````
+I prefer to say "trackable", how do you think?
+````
+
+## 2026-04-14 01:34 UTC -- PR #66 review comment by @ChaosEternal
+
+````
+%claude
+
+Changed the heading from "Auditable" to "Trackable" as suggested. Pushed in commit 599f20e.
+````
+
+## 2026-04-14 02:53 UTC -- PR #66 merged
+
+## 2026-04-14 02:53 UTC -- Issue #65 closed
+
+## 2026-04-14 02:53 UTC -- Issue #65 closed by @ChaosEternal
+
+## 2026-04-14 02:54 UTC -- Issue #67 created by @ChaosEternal: "update the history.md" [task]
+
+````
+Update the history.md
+````
+
+## 2026-04-14 02:57 UTC -- Issue #67 comment by @ChaosEternal
+
+````
+%claude
+
+## Task Breakdown: Update HISTORY.md
+
+The `HISTORY.md` currently covers events up to **2026-04-09**. It needs to be updated to include all activity since then (issues #45–#67, PRs #46–#66, and associated comments/reviews).
+
+### Steps
+
+1. **Run `generate_history.py` with `--since` and `--append`**:
+   ```bash
+   python3 generate_history.py ChaosEternal/gitbot --since 2026-04-09 -o HISTORY.md --append
+   ```
+   This will fetch all issues, comments, PR events, and PR comments since April 9th and append them.
+
+2. **Review the output** to ensure formatting is consistent with the existing content and there are no duplicate entries at the boundary.
+
+3. **Commit and push** the updated `HISTORY.md` via a PR from a feature branch (e.g., `feature/issue-67-update-history`).
+
+### Notes
+- To make this a directly implementable task, add the `task` label and include `@claude implement` in a comment.
+- The `generate_history.py` script with `--append` mode handles incremental updates, so a full regeneration is not necessary.
+````
+
+## 2026-04-14 03:33 UTC -- Issue #67 labeled "task" by @ChaosEternal
+
+## 2026-04-14 03:34 UTC -- Issue #67 comment by @ChaosEternal
+
+````
+@claude implement
+````
+
