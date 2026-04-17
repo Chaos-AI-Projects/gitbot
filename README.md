@@ -39,10 +39,11 @@ Get GitBot running in 5 steps.
 
 ### Step 1: Install GitBot
 
-Clone the repository and install Python dependencies. You also need the GitHub CLI (`gh`) and Claude CLI (`claude`).
+Clone this repository and install Python dependencies. You also need the GitHub CLI (`gh`) and Claude CLI (`claude`).
 
 ```bash
-git clone https://github.com/ChaosEternal/gitbot.git
+# Clone using the green "Code" button on the repo page, or:
+#   gh repo clone <owner>/gitbot
 cd gitbot
 pip install -r requirements.txt
 ```
