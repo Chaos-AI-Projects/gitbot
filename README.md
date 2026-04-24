@@ -116,12 +116,9 @@ Wait for the next poll cycle and Claude will pick up the new activity automatica
 
 ## How It Works
 
-```
-┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  github_fetcher.py  │────▶│ process_event_file.py│────▶│   claude_agent.py   │
-│  Fetch issues, PR   │     │ Automate fetch/archive│     │ Claude acts on the  │
-│  comments from API  │     │ via .done files       │     │ GitHub activity     │
-└─────────────────────┘     └──────────────────────┘     └─────────────────────┘
+```mermaid
+flowchart LR
+    A["github_fetcher.py\nFetch issues, PR\ncomments from API"] --> B["process_event_file.py\nAutomate fetch/archive\nvia .done files"] --> C["claude_agent.py\nClaude acts on the\nGitHub activity"]
 ```
 
 1. **`github_fetcher.py`** — Fetches issues, issue comments, and PR review comments from the GitHub API since a given timestamp.
