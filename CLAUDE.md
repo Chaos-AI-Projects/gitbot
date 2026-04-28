@@ -75,7 +75,11 @@ This script:
 2. Builds a prompt from `prompt_template.md` (template file with `{json_path}`, `{repo_dir}`, and `{default_branch}` placeholders)
 3. Invokes `claude -p` with all tools available
 4. Claude reads the JSON, identifies actionable items, and acts according to priority rules:
-   - **Task issues** (label "task" + "@claude implement") → implement and create PR
+   - **Task issues with `@claude <action>`** — the action keyword determines behavior:
+     - `@claude implement` → create branch, implement, open PR
+     - `@claude execute` → post dry-run summary, wait for approval, then execute
+     - `@claude plan` → comment with task breakdown (no implementation)
+   - **Task issues with no keyword** → ask which action to take
    - **PR review comments** → address feedback and push fixes
    - **Review requests** ("@claude review") → review `%claude`-prefixed content and comment with `%claude-reviewer` prefix
    - **Other issues** → create task breakdown comment
