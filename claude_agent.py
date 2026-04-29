@@ -12,7 +12,84 @@ import sys
 import shutil
 import subprocess
 import argparse
+from datetime import datetime, timezone
 from pathlib import Path
+
+
+def build_resume_prompt(timeout_file: str, repo_dir: str, default_branch: str = 'master') -> str:
+    """
+    Construct a prompt that instructs Claude to resume a previously timed-out task.
+
+    Reads the timeout metadata file and the original JSON file (if still present)
+    to build a prompt that asks Claude to attempt resumption.
+
+    Args:
+        timeout_file: Absolute path to the .timeout metadata file
+        repo_dir: Absolute path to the repository working directory
+        default_branch: The default git branch name
+
+    Returns:
+        The prompt string to pass to Claude CLI
+    """
+    timeout_path = Path(timeout_file)
+    metadata = {}
+    for line in timeout_path.read_text().splitlines():
+        if '=' in line:
+            key, value = line.split('=', 1)
+            metadata[key.strip()] = value.strip()
+
+    json_filename = metadata.get('json_file', 'unknown')
+    timestamp = metadata.get('timestamp', 'unknown')
+    timeout_seconds = metadata.get('timeout_seconds', 'unknown')
+
+    # Try to find the original JSON file for context
+    json_path = timeout_path.parent / json_filename
+    json_context = ''
+    if json_path.exists():
+        json_context = (
+            f'\n\nThe original JSON file is still available at: {json_path}\n'
+            f'Read it to understand what task was being worked on.'
+        )
+    else:
+        done_path = json_path.with_suffix('.done')
+        if done_path.exists():
+            json_context = (
+                f'\n\nThe original JSON was already processed and renamed to: {done_path}\n'
+                f'Read it to understand what task was being worked on.'
+            )
+
+    return f"""You are an autonomous GitHub agent resuming a previously timed-out task.
+
+## Context
+
+A previous agent run was killed due to timeout:
+- **Timed out at**: {timestamp}
+- **Timeout limit**: {timeout_seconds} seconds
+- **Original JSON file**: {json_filename}{json_context}
+
+## Current State
+
+Run these commands to understand the current repo state:
+- `gh issue list --state open` to see open issues
+- `gh pr list --state open` to see open PRs
+- `git log --oneline -10` to see recent commits
+- `git branch -a` to see branches
+- `git status` to check for any in-progress work from the timed-out run
+
+## Instructions
+
+1. Investigate what the previous agent was working on (check branches, partial commits, open PRs, issue comments)
+2. Determine whether the task was partially completed
+3. If the task can be resumed, continue from where it left off and complete it
+4. If the task cannot be resumed (e.g., conflicts, unclear state), comment on the relevant issue explaining what happened and what needs to be done
+
+## Important Rules
+
+- **Prefix all GitHub content you create** (issue comments, PR descriptions, review replies) with `%claude` on the first line.
+- **Skip any content that starts with `%claude`** — this was created by a previous agent run.
+- **Git workflow**: Always branch from {default_branch}. Use descriptive branch names. Never commit directly to {default_branch}.
+- **Do NOT rename, move, or delete the timeout file or JSON file.** Their lifecycle is managed externally.
+"""
 
 
 def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master') -> str:
@@ -36,7 +113,8 @@ def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master') 
                            default_branch=default_branch)
 
 
-def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
+def invoke_claude(prompt: str, workdir: str, model: str = None,
+                   timeout: int = None) -> int:
     """
     Run the Claude CLI with the given prompt.
 
@@ -44,9 +122,13 @@ def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
         prompt: The prompt to send to Claude
         workdir: Working directory for the Claude process
         model: Optional model override
+        timeout: Optional timeout in seconds; raises subprocess.TimeoutExpired if exceeded
 
     Returns:
         The exit code from the Claude CLI process
+
+    Raises:
+        subprocess.TimeoutExpired: If the process exceeds the timeout
     """
     cmd = ['claude', '-p', '--dangerously-skip-permissions']
 
@@ -58,9 +140,71 @@ def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
         input=prompt,
         cwd=workdir,
         text=True,
+        timeout=timeout,
     )
 
     return result.returncode
+
+
+def write_timeout_metadata(json_path: str, timeout_seconds: int) -> Path:
+    """
+    Create a .timeout metadata file for a timed-out agent run.
+
+    Args:
+        json_path: Path to the JSON file that was being processed
+        timeout_seconds: The timeout limit that was exceeded
+
+    Returns:
+        The path to the created .timeout file
+    """
+    path = Path(json_path)
+    timeout_path = path.with_suffix('.timeout')
+    timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    timeout_path.write_text(
+        f'json_file={path.name}\n'
+        f'timestamp={timestamp}\n'
+        f'timeout_seconds={timeout_seconds}\n'
+        f'exit_status=124\n'
+        f'retry_count=0\n'
+    )
+    return timeout_path
+
+
+def read_timeout_metadata(timeout_path: Path) -> dict:
+    """
+    Parse a .timeout metadata file into a dictionary.
+
+    Args:
+        timeout_path: Path to the .timeout file
+
+    Returns:
+        Dictionary of key=value pairs from the file
+    """
+    metadata = {}
+    for line in timeout_path.read_text().splitlines():
+        if '=' in line:
+            key, value = line.split('=', 1)
+            metadata[key.strip()] = value.strip()
+    return metadata
+
+
+def update_retry_count(timeout_path: Path, metadata: dict) -> int:
+    """
+    Increment the retry_count in a .timeout metadata file.
+
+    Args:
+        timeout_path: Path to the .timeout file
+        metadata: Current metadata dictionary
+
+    Returns:
+        The new retry count after incrementing
+    """
+    retry_count = int(metadata.get('retry_count', '0')) + 1
+    metadata['retry_count'] = str(retry_count)
+    timeout_path.write_text(
+        ''.join(f'{k}={v}\n' for k, v in metadata.items())
+    )
+    return retry_count
 
 
 def rename_json_to_done(json_path: str) -> Path:
@@ -102,6 +246,8 @@ def main():
     )
     parser.add_argument(
         'json_file',
+        nargs='?',
+        default=None,
         help='Path to JSON file produced by github_fetcher.py'
     )
     parser.add_argument(
@@ -119,17 +265,27 @@ def main():
         default=None,
         help='Repository directory for Claude to work in (default: current working directory)'
     )
+    parser.add_argument(
+        '--resume-timeout',
+        default=None,
+        help='Path to a .timeout file to resume a previously timed-out task'
+    )
+    parser.add_argument(
+        '--timeout',
+        type=int,
+        default=None,
+        help='Timeout in seconds for the Claude CLI invocation'
+    )
+    parser.add_argument(
+        '--max-retries',
+        type=int,
+        default=3,
+        help='Maximum number of timeout retries before marking as failed (default: 3)'
+    )
     args = parser.parse_args()
 
-    # Resolve paths
-    json_path = Path(args.json_file).resolve()
-    if not json_path.exists():
-        print(f"Error: File not found: {json_path}", file=sys.stderr)
-        sys.exit(1)
-
-    if json_path.suffix != '.json':
-        print(f"Error: Expected a .json file, got: {json_path.name}", file=sys.stderr)
-        sys.exit(1)
+    if not args.json_file and not args.resume_timeout:
+        parser.error('Either json_file or --resume-timeout is required')
 
     # Determine repo directory (default: current working directory)
     if args.repo_dir:
@@ -166,6 +322,88 @@ def main():
         print(f"Error: Failed to determine git branch: {e.stderr.strip()}", file=sys.stderr)
         sys.exit(1)
 
+    # Handle --resume-timeout mode
+    if args.resume_timeout:
+        timeout_path = Path(args.resume_timeout).resolve()
+        if not timeout_path.exists():
+            print(f"Error: Timeout file not found: {timeout_path}", file=sys.stderr)
+            sys.exit(1)
+
+        prompt = build_resume_prompt(str(timeout_path), str(repo_dir),
+                                     default_branch=default_branch)
+
+        if args.dry_run:
+            print("=== DRY RUN — Resume prompt that would be sent to Claude ===\n")
+            print(prompt)
+            print(f"\n=== Working directory: {repo_dir} ===")
+            return
+
+        print(f"Resuming timed-out task from {timeout_path.name} in {repo_dir}...")
+        if args.model:
+            print(f"Using model: {args.model}")
+
+        metadata = read_timeout_metadata(timeout_path)
+
+        try:
+            exit_code = invoke_claude(prompt, str(repo_dir), model=args.model,
+                                      timeout=args.timeout)
+        except subprocess.TimeoutExpired:
+            retry_count = update_retry_count(timeout_path, metadata)
+            if retry_count >= args.max_retries:
+                failed_path = timeout_path.with_suffix('.failed')
+                timeout_path.rename(failed_path)
+                print(f"\nError: Resume timed out after {args.timeout}s "
+                      f"(retry {retry_count}/{args.max_retries}). "
+                      f"Max retries exceeded, renamed to {failed_path.name}.",
+                      file=sys.stderr)
+            else:
+                print(f"\nWarning: Resume timed out after {args.timeout}s "
+                      f"(retry {retry_count}/{args.max_retries}), "
+                      f"keeping {timeout_path.name} for retry.",
+                      file=sys.stderr)
+            sys.exit(124)
+
+        print(f"\nClaude exited with code: {exit_code}")
+
+        if exit_code == 0:
+            # Rename original JSON to .done if it still exists
+            json_filename = metadata.get('json_file')
+            if json_filename:
+                original_json = timeout_path.parent / json_filename
+                if original_json.exists():
+                    done_path = rename_json_to_done(str(original_json))
+                    print(f"Renamed {original_json.name} → {done_path.name}")
+
+            # Remove the timeout file
+            timeout_path.unlink()
+            print(f"Removed timeout file: {timeout_path.name}")
+        else:
+            retry_count = update_retry_count(timeout_path, metadata)
+            if retry_count >= args.max_retries:
+                failed_path = timeout_path.with_suffix('.failed')
+                timeout_path.rename(failed_path)
+                print(f"Error: Resume failed with code {exit_code} "
+                      f"(retry {retry_count}/{args.max_retries}). "
+                      f"Max retries exceeded, renamed to {failed_path.name}.",
+                      file=sys.stderr)
+            else:
+                print(f"Warning: Resume exited with code {exit_code} "
+                      f"(retry {retry_count}/{args.max_retries}), "
+                      f"keeping {timeout_path.name} for retry.",
+                      file=sys.stderr)
+            sys.exit(exit_code)
+        return
+
+    # Normal mode: process a JSON file
+    json_path = Path(args.json_file).resolve()
+    if not json_path.exists():
+        print(f"Error: File not found: {json_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if json_path.suffix != '.json':
+        print(f"Error: Expected a .json file, got: {json_path.name}", file=sys.stderr)
+        sys.exit(1)
+
     # Build the prompt
     prompt = build_prompt(str(json_path), str(repo_dir), default_branch=default_branch)
 
@@ -182,7 +420,16 @@ def main():
     if args.model:
         print(f"Using model: {args.model}")
 
-    exit_code = invoke_claude(prompt, str(repo_dir), model=args.model)
+    try:
+        exit_code = invoke_claude(prompt, str(repo_dir), model=args.model,
+                                  timeout=args.timeout)
+    except subprocess.TimeoutExpired:
+        print(f"\nWarning: Claude timed out after {args.timeout}s for {json_path.name}",
+              file=sys.stderr)
+        timeout_meta = write_timeout_metadata(str(json_path), args.timeout)
+        print(f"Created timeout file: {timeout_meta.name}", file=sys.stderr)
+        sys.exit(124)
+
     print(f"\nClaude exited with code: {exit_code}")
 
     if exit_code != 0:

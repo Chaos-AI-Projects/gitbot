@@ -16,11 +16,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 JOBS_DIR=".jobs"
 POLL_INTERVAL=300
 DEFAULT_BRANCH=""
+AGENT_TIMEOUT=900
+MAX_RETRIES=3
 
 # ── Argument parsing ─────────────────────────────────────────────────────────
 usage() {
     cat <<'EOF'
-Usage: gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS]
+Usage: gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS] [--timeout SECONDS] [--max-retries N]
 
 Arguments:
   jobs_dir              Directory containing .done/.json files (default: .jobs)
@@ -28,6 +30,8 @@ Arguments:
 Options:
   --branch BRANCH       Override the default git branch (default: auto-detect)
   --interval SECONDS    Poll interval in seconds (default: 300)
+  --timeout SECONDS     Timeout for each Claude agent run in seconds (default: 900)
+  --max-retries N       Max timeout retries before marking as failed (default: 3)
   -h, --help            Show this help message
 EOF
 }
@@ -40,6 +44,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --interval)
             POLL_INTERVAL="$2"
+            shift 2
+            ;;
+        --timeout)
+            AGENT_TIMEOUT="$2"
+            shift 2
+            ;;
+        --max-retries)
+            MAX_RETRIES="$2"
             shift 2
             ;;
         -h|--help)
@@ -160,6 +172,8 @@ log "GitBot automation started"
 log "  Jobs directory: $JOBS_DIR"
 log "  Default branch: $DEFAULT_BRANCH"
 log "  Poll interval:  ${POLL_INTERVAL}s"
+log "  Agent timeout:  ${AGENT_TIMEOUT}s"
+log "  Max retries:    ${MAX_RETRIES}"
 log "Press Ctrl-C to stop."
 
 while $RUNNING; do
@@ -168,17 +182,21 @@ while $RUNNING; do
         log "Warning: process_event_file.py exited with error, continuing..."
     }
 
+    # Check for .timeout files from previous timed-out runs
+    timeout_files=()
+    for f in "$JOBS_DIR"/*.timeout; do
+        [[ -e "$f" ]] && timeout_files+=("$f")
+    done
+
     # Check for .json files
     json_files=()
     for f in "$JOBS_DIR"/*.json; do
         [[ -e "$f" ]] && json_files+=("$f")
     done
 
-    if [[ ${#json_files[@]} -eq 0 ]]; then
+    if [[ ${#timeout_files[@]} -eq 0 ]] && [[ ${#json_files[@]} -eq 0 ]]; then
         log "No new activity to process."
     else
-        log "Found ${#json_files[@]} JSON file(s) to process."
-
         # Checkout default branch and pull latest
         if ! git checkout "$DEFAULT_BRANCH" 2>/dev/null; then
             log "Warning: Could not checkout $DEFAULT_BRANCH (uncommitted changes?). Skipping agent run."
@@ -187,13 +205,37 @@ while $RUNNING; do
                 log "Warning: git pull failed. Continuing with current state."
             fi
 
-            for json_file in "${json_files[@]}"; do
-                $RUNNING || break
-                log "Processing: $json_file"
-                if ! python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)"; then
-                    log "Warning: claude_agent.py failed for $json_file"
-                fi
-            done
+            # Process timeout files first (resume previous timed-out runs)
+            if [[ ${#timeout_files[@]} -gt 0 ]]; then
+                log "Found ${#timeout_files[@]} timeout file(s) to resume."
+                for timeout_file in "${timeout_files[@]}"; do
+                    $RUNNING || break
+                    log "Resuming timed-out task: $timeout_file"
+                    python3 "$SCRIPT_DIR/claude_agent.py" --resume-timeout "$timeout_file" --repo-dir "$(pwd)" --timeout "$AGENT_TIMEOUT" --max-retries "$MAX_RETRIES" && resume_rc=0 || resume_rc=$?
+                    if [[ $resume_rc -eq 0 ]]; then
+                        log "Resume completed successfully."
+                    elif [[ $resume_rc -eq 124 ]]; then
+                        log "Warning: Resume also timed out for $timeout_file"
+                    else
+                        log "Warning: Resume failed for $timeout_file (exit $resume_rc)"
+                    fi
+                done
+            fi
+
+            # Process new JSON files with timeout
+            if [[ ${#json_files[@]} -gt 0 ]]; then
+                log "Found ${#json_files[@]} JSON file(s) to process."
+                for json_file in "${json_files[@]}"; do
+                    $RUNNING || break
+                    log "Processing: $json_file"
+                    python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)" --timeout "$AGENT_TIMEOUT" && exit_code=0 || exit_code=$?
+                    if [[ $exit_code -eq 124 ]]; then
+                        log "Warning: claude_agent.py timed out after ${AGENT_TIMEOUT}s for $json_file"
+                    elif [[ $exit_code -ne 0 ]]; then
+                        log "Warning: claude_agent.py failed for $json_file (exit $exit_code)"
+                    fi
+                done
+            fi
         fi
     fi
 
