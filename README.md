@@ -109,7 +109,10 @@ GitBot will now poll for new GitHub activity and invoke Claude whenever there is
 Create an issue in your repository. The bot responds differently depending on what it finds:
 
 - **Normal issues or comments** — the bot will analyze the issue and reply with a structured task breakdown or ask clarifying questions.
-- **Task issues** — if an issue has the `task` label and a comment containing `@claude implement`, the bot will create a feature branch, implement the request, and open a pull request.
+- **Task issues** — if an issue has the `task` label and a `@claude <action>` keyword, the bot acts accordingly:
+  - `@claude implement` — create a feature branch, implement the request, and open a pull request.
+  - `@claude execute` — post a dry-run summary of planned actions, then execute after human approval (`@claude proceed`).
+  - `@claude plan` — comment with a structured task breakdown without implementing.
 - **PR review comments** — responding to an open PR will cause the bot to address the feedback, push fixes, and reply to each comment.
 
 Wait for the next poll cycle and Claude will pick up the new activity automatically.
@@ -204,7 +207,10 @@ Takes a JSON file produced by `github_fetcher.py` and invokes Claude CLI to auto
 
 | Priority | Trigger | Action |
 |----------|---------|--------|
-| 1 | Issue has label `task` + comment `@claude implement` | Create branch, implement, open PR |
+| 1 | Issue has label `task` + `@claude implement` | Create branch, implement, open PR |
+| 1 | Issue has label `task` + `@claude execute` | Post dry-run summary, execute after approval |
+| 1 | Issue has label `task` + `@claude plan` | Comment with task breakdown |
+| 1 | Issue has label `task` + no keyword | Ask which action to take |
 | 2 | PR review comments on open PRs | Address feedback, push fixes |
 | 3 | Other issues (no `task` label) | Comment with task breakdown |
 | 4 | Ambiguous items | Comment asking for clarification |

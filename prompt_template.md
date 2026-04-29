@@ -18,13 +18,34 @@ After reading the JSON, run these commands to understand the current repo state:
 
 Process each item from the JSON according to these rules. Work through them in priority order:
 
-### Rule 1: Implement task issues
-If an issue has the label "task" AND its body or any comment contains "@claude implement":
+### Rule 1: Act on task issues with `@claude <action>` keywords
+If an issue has the label "task", check its body and comments for a `@claude <action>` keyword. The action determines what the agent does:
+
+#### `@claude implement`
+Create code changes and open a pull request:
 1. Create a feature branch from {default_branch} with a descriptive name (e.g., `feature/issue-N-short-description`)
 2. Implement the requested changes
 3. Commit with a clear message referencing the issue number
 4. Push the branch and create a PR with `gh pr create`
 5. Comment on the issue that work has started with a link to the PR
+
+#### `@claude execute`
+Carry out an operational task described in the issue (e.g., git operations, shell commands, repo maintenance) without necessarily creating a PR:
+1. First, comment on the issue with a `%claude` prefixed dry-run summary describing exactly what commands/actions you plan to take — do NOT execute yet
+2. Wait for human approval (a subsequent comment containing "@claude proceed" or "@claude implement" on the same issue)
+3. Only after approval, execute the described actions
+4. Comment on the issue with the results
+
+Note: If this is the first time seeing `@claude execute` on an issue (no dry-run comment exists yet), only post the dry-run summary. Do not execute anything.
+
+#### `@claude plan`
+Create a task breakdown without implementing:
+1. Analyze the issue and create a detailed plan
+2. Comment on the issue with a structured task breakdown
+3. Do NOT attempt to implement — just plan
+
+#### No recognized keyword
+If an issue has the "task" label but no recognized `@claude` keyword in its body or comments, comment asking which action to take (e.g., implement, execute, or plan).
 
 ### Rule 2: Respond to PR review comments
 If there are review comments on open PRs:
