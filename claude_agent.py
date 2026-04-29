@@ -12,6 +12,7 @@ import sys
 import shutil
 import subprocess
 import argparse
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -112,7 +113,8 @@ def build_prompt(json_path: str, repo_dir: str, default_branch: str = 'master') 
                            default_branch=default_branch)
 
 
-def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
+def invoke_claude(prompt: str, workdir: str, model: str = None,
+                   timeout: int = None) -> int:
     """
     Run the Claude CLI with the given prompt.
 
@@ -120,9 +122,13 @@ def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
         prompt: The prompt to send to Claude
         workdir: Working directory for the Claude process
         model: Optional model override
+        timeout: Optional timeout in seconds; raises subprocess.TimeoutExpired if exceeded
 
     Returns:
         The exit code from the Claude CLI process
+
+    Raises:
+        subprocess.TimeoutExpired: If the process exceeds the timeout
     """
     cmd = ['claude', '-p', '--dangerously-skip-permissions']
 
@@ -134,9 +140,33 @@ def invoke_claude(prompt: str, workdir: str, model: str = None) -> int:
         input=prompt,
         cwd=workdir,
         text=True,
+        timeout=timeout,
     )
 
     return result.returncode
+
+
+def write_timeout_metadata(json_path: str, timeout_seconds: int) -> Path:
+    """
+    Create a .timeout metadata file for a timed-out agent run.
+
+    Args:
+        json_path: Path to the JSON file that was being processed
+        timeout_seconds: The timeout limit that was exceeded
+
+    Returns:
+        The path to the created .timeout file
+    """
+    path = Path(json_path)
+    timeout_path = path.with_suffix('.timeout')
+    timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    timeout_path.write_text(
+        f'json_file={path.name}\n'
+        f'timestamp={timestamp}\n'
+        f'timeout_seconds={timeout_seconds}\n'
+        f'exit_status=124\n'
+    )
+    return timeout_path
 
 
 def rename_json_to_done(json_path: str) -> Path:
@@ -202,6 +232,12 @@ def main():
         default=None,
         help='Path to a .timeout file to resume a previously timed-out task'
     )
+    parser.add_argument(
+        '--timeout',
+        type=int,
+        default=None,
+        help='Timeout in seconds for the Claude CLI invocation'
+    )
     args = parser.parse_args()
 
     if not args.json_file and not args.resume_timeout:
@@ -262,7 +298,14 @@ def main():
         if args.model:
             print(f"Using model: {args.model}")
 
-        exit_code = invoke_claude(prompt, str(repo_dir), model=args.model)
+        try:
+            exit_code = invoke_claude(prompt, str(repo_dir), model=args.model,
+                                      timeout=args.timeout)
+        except subprocess.TimeoutExpired:
+            print(f"\nWarning: Resume timed out again after {args.timeout}s, "
+                  f"keeping {timeout_path.name} for retry.", file=sys.stderr)
+            sys.exit(124)
+
         print(f"\nClaude exited with code: {exit_code}")
 
         if exit_code == 0:
@@ -316,7 +359,16 @@ def main():
     if args.model:
         print(f"Using model: {args.model}")
 
-    exit_code = invoke_claude(prompt, str(repo_dir), model=args.model)
+    try:
+        exit_code = invoke_claude(prompt, str(repo_dir), model=args.model,
+                                  timeout=args.timeout)
+    except subprocess.TimeoutExpired:
+        print(f"\nWarning: Claude timed out after {args.timeout}s for {json_path.name}",
+              file=sys.stderr)
+        timeout_meta = write_timeout_metadata(str(json_path), args.timeout)
+        print(f"Created timeout file: {timeout_meta.name}", file=sys.stderr)
+        sys.exit(124)
+
     print(f"\nClaude exited with code: {exit_code}")
 
     if exit_code != 0:

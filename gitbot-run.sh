@@ -204,7 +204,7 @@ while $RUNNING; do
                 for timeout_file in "${timeout_files[@]}"; do
                     $RUNNING || break
                     log "Resuming timed-out task: $timeout_file"
-                    timeout "$AGENT_TIMEOUT" python3 "$SCRIPT_DIR/claude_agent.py" --resume-timeout "$timeout_file" --repo-dir "$(pwd)" && resume_rc=0 || resume_rc=$?
+                    python3 "$SCRIPT_DIR/claude_agent.py" --resume-timeout "$timeout_file" --repo-dir "$(pwd)" --timeout "$AGENT_TIMEOUT" && resume_rc=0 || resume_rc=$?
                     if [[ $resume_rc -eq 0 ]]; then
                         log "Resume completed successfully."
                     elif [[ $resume_rc -eq 124 ]]; then
@@ -221,18 +221,9 @@ while $RUNNING; do
                 for json_file in "${json_files[@]}"; do
                     $RUNNING || break
                     log "Processing: $json_file"
-                    timeout "$AGENT_TIMEOUT" python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)" && exit_code=0 || exit_code=$?
+                    python3 "$SCRIPT_DIR/claude_agent.py" "$json_file" --repo-dir "$(pwd)" --timeout "$AGENT_TIMEOUT" && exit_code=0 || exit_code=$?
                     if [[ $exit_code -eq 124 ]]; then
                         log "Warning: claude_agent.py timed out after ${AGENT_TIMEOUT}s for $json_file"
-                        # Create .timeout metadata file
-                        timeout_meta="${json_file%.json}.timeout"
-                        cat > "$timeout_meta" <<TIMEOUT_EOF
-json_file=$(basename "$json_file")
-timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-timeout_seconds=$AGENT_TIMEOUT
-exit_status=124
-TIMEOUT_EOF
-                        log "Created timeout file: $timeout_meta"
                     elif [[ $exit_code -ne 0 ]]; then
                         log "Warning: claude_agent.py failed for $json_file (exit $exit_code)"
                     fi
