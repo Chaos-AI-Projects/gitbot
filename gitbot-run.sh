@@ -17,11 +17,12 @@ JOBS_DIR=".jobs"
 POLL_INTERVAL=300
 DEFAULT_BRANCH=""
 AGENT_TIMEOUT=900
+MAX_RETRIES=3
 
 # ── Argument parsing ─────────────────────────────────────────────────────────
 usage() {
     cat <<'EOF'
-Usage: gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS] [--timeout SECONDS]
+Usage: gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS] [--timeout SECONDS] [--max-retries N]
 
 Arguments:
   jobs_dir              Directory containing .done/.json files (default: .jobs)
@@ -30,6 +31,7 @@ Options:
   --branch BRANCH       Override the default git branch (default: auto-detect)
   --interval SECONDS    Poll interval in seconds (default: 300)
   --timeout SECONDS     Timeout for each Claude agent run in seconds (default: 900)
+  --max-retries N       Max timeout retries before marking as failed (default: 3)
   -h, --help            Show this help message
 EOF
 }
@@ -46,6 +48,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --timeout)
             AGENT_TIMEOUT="$2"
+            shift 2
+            ;;
+        --max-retries)
+            MAX_RETRIES="$2"
             shift 2
             ;;
         -h|--help)
@@ -167,6 +173,7 @@ log "  Jobs directory: $JOBS_DIR"
 log "  Default branch: $DEFAULT_BRANCH"
 log "  Poll interval:  ${POLL_INTERVAL}s"
 log "  Agent timeout:  ${AGENT_TIMEOUT}s"
+log "  Max retries:    ${MAX_RETRIES}"
 log "Press Ctrl-C to stop."
 
 while $RUNNING; do
@@ -204,7 +211,7 @@ while $RUNNING; do
                 for timeout_file in "${timeout_files[@]}"; do
                     $RUNNING || break
                     log "Resuming timed-out task: $timeout_file"
-                    python3 "$SCRIPT_DIR/claude_agent.py" --resume-timeout "$timeout_file" --repo-dir "$(pwd)" --timeout "$AGENT_TIMEOUT" && resume_rc=0 || resume_rc=$?
+                    python3 "$SCRIPT_DIR/claude_agent.py" --resume-timeout "$timeout_file" --repo-dir "$(pwd)" --timeout "$AGENT_TIMEOUT" --max-retries "$MAX_RETRIES" && resume_rc=0 || resume_rc=$?
                     if [[ $resume_rc -eq 0 ]]; then
                         log "Resume completed successfully."
                     elif [[ $resume_rc -eq 124 ]]; then

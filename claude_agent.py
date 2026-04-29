@@ -165,8 +165,46 @@ def write_timeout_metadata(json_path: str, timeout_seconds: int) -> Path:
         f'timestamp={timestamp}\n'
         f'timeout_seconds={timeout_seconds}\n'
         f'exit_status=124\n'
+        f'retry_count=0\n'
     )
     return timeout_path
+
+
+def read_timeout_metadata(timeout_path: Path) -> dict:
+    """
+    Parse a .timeout metadata file into a dictionary.
+
+    Args:
+        timeout_path: Path to the .timeout file
+
+    Returns:
+        Dictionary of key=value pairs from the file
+    """
+    metadata = {}
+    for line in timeout_path.read_text().splitlines():
+        if '=' in line:
+            key, value = line.split('=', 1)
+            metadata[key.strip()] = value.strip()
+    return metadata
+
+
+def update_retry_count(timeout_path: Path, metadata: dict) -> int:
+    """
+    Increment the retry_count in a .timeout metadata file.
+
+    Args:
+        timeout_path: Path to the .timeout file
+        metadata: Current metadata dictionary
+
+    Returns:
+        The new retry count after incrementing
+    """
+    retry_count = int(metadata.get('retry_count', '0')) + 1
+    metadata['retry_count'] = str(retry_count)
+    timeout_path.write_text(
+        ''.join(f'{k}={v}\n' for k, v in metadata.items())
+    )
+    return retry_count
 
 
 def rename_json_to_done(json_path: str) -> Path:
@@ -238,6 +276,12 @@ def main():
         default=None,
         help='Timeout in seconds for the Claude CLI invocation'
     )
+    parser.add_argument(
+        '--max-retries',
+        type=int,
+        default=3,
+        help='Maximum number of timeout retries before marking as failed (default: 3)'
+    )
     args = parser.parse_args()
 
     if not args.json_file and not args.resume_timeout:
@@ -298,24 +342,30 @@ def main():
         if args.model:
             print(f"Using model: {args.model}")
 
+        metadata = read_timeout_metadata(timeout_path)
+
         try:
             exit_code = invoke_claude(prompt, str(repo_dir), model=args.model,
                                       timeout=args.timeout)
         except subprocess.TimeoutExpired:
-            print(f"\nWarning: Resume timed out again after {args.timeout}s, "
-                  f"keeping {timeout_path.name} for retry.", file=sys.stderr)
+            retry_count = update_retry_count(timeout_path, metadata)
+            if retry_count >= args.max_retries:
+                failed_path = timeout_path.with_suffix('.failed')
+                timeout_path.rename(failed_path)
+                print(f"\nError: Resume timed out after {args.timeout}s "
+                      f"(retry {retry_count}/{args.max_retries}). "
+                      f"Max retries exceeded, renamed to {failed_path.name}.",
+                      file=sys.stderr)
+            else:
+                print(f"\nWarning: Resume timed out after {args.timeout}s "
+                      f"(retry {retry_count}/{args.max_retries}), "
+                      f"keeping {timeout_path.name} for retry.",
+                      file=sys.stderr)
             sys.exit(124)
 
         print(f"\nClaude exited with code: {exit_code}")
 
         if exit_code == 0:
-            # Parse the original JSON filename from the timeout metadata
-            metadata = {}
-            for line in timeout_path.read_text().splitlines():
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    metadata[key.strip()] = value.strip()
-
             # Rename original JSON to .done if it still exists
             json_filename = metadata.get('json_file')
             if json_filename:
@@ -328,8 +378,19 @@ def main():
             timeout_path.unlink()
             print(f"Removed timeout file: {timeout_path.name}")
         else:
-            print(f"Warning: Resume exited with code {exit_code}, "
-                  f"keeping {timeout_path.name} for retry.", file=sys.stderr)
+            retry_count = update_retry_count(timeout_path, metadata)
+            if retry_count >= args.max_retries:
+                failed_path = timeout_path.with_suffix('.failed')
+                timeout_path.rename(failed_path)
+                print(f"Error: Resume failed with code {exit_code} "
+                      f"(retry {retry_count}/{args.max_retries}). "
+                      f"Max retries exceeded, renamed to {failed_path.name}.",
+                      file=sys.stderr)
+            else:
+                print(f"Warning: Resume exited with code {exit_code} "
+                      f"(retry {retry_count}/{args.max_retries}), "
+                      f"keeping {timeout_path.name} for retry.",
+                      file=sys.stderr)
             sys.exit(exit_code)
         return
 
