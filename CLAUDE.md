@@ -68,6 +68,7 @@ This script:
 Invoke Claude CLI to autonomously act on GitHub activity:
 ```bash
 python3 claude_agent.py <json_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
+python3 claude_agent.py --resume-timeout <timeout_file> [--dry-run] [--model MODEL] [--repo-dir DIR]
 ```
 
 This script:
@@ -91,6 +92,7 @@ Options:
 - `--dry-run`: Print the prompt without invoking Claude
 - `--model MODEL`: Override the Claude model
 - `--repo-dir DIR`: Set the working directory for Claude (default: current working directory; must be git repo root on default branch)
+- `--resume-timeout FILE`: Resume a previously timed-out task from a `.timeout` metadata file
 
 Environment variables:
 - `GITBOT_DEFAULT_BRANCH`: Override the default branch name (auto-detected if not set). Set automatically by `gitbot-run.sh`.
@@ -98,7 +100,7 @@ Environment variables:
 #### Automation Script (gitbot-run.sh)
 Main automation loop that wraps the entire pipeline:
 ```bash
-./gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS]
+./gitbot-run.sh [jobs_dir] [--branch BRANCH] [--interval SECONDS] [--timeout SECONDS]
 ```
 
 This script:
@@ -107,7 +109,10 @@ This script:
 3. Exports `GITBOT_DEFAULT_BRANCH` for downstream tools
 4. Polls for new GitHub activity at the specified interval
 5. Fetches activity via `process_event_file.py`, then runs `claude_agent.py` on each JSON result
-6. Handles SIGINT/SIGTERM for clean shutdown
+6. **Enforces a timeout** on each `claude_agent.py` invocation (default: 900s / 15 minutes, configurable via `--timeout`)
+7. **On timeout**: creates a `.timeout` metadata file (timestamp, JSON filename, exit status) alongside the original JSON
+8. **On next poll**: detects `.timeout` files and invokes `claude_agent.py --resume-timeout` to attempt task resumption
+9. Handles SIGINT/SIGTERM for clean shutdown
 
 #### History Generator (generate_history.py)
 Generate a chronological Markdown history of a GitHub repository:
